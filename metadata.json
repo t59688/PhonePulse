@@ -1,0 +1,6 @@
+{
+  "name": "ScreenPulse",
+  "description": "Smart screen awake & sleep duration monitor, live session timer, and app foreground usage tracker with background keep-alive.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

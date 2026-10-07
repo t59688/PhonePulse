@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ScreenPulse</string>
+    <string name="notification_channel_name">Screen State Monitor</string>
+    <string name="notification_channel_desc">Shows real-time screen awake and sleep tracking status</string>
+    <string name="service_running_title">ScreenPulse 守护中</string>
+    <string name="service_running_content">正在精确记录亮屏与熄屏时长</string>
+</resources>
