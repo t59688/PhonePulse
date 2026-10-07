@@ -18,16 +18,6 @@ class ScreenPulseApp : Application() {
         // Initialize reactive screen state holder
         ScreenStateHolder.initialize(this)
 
-        // Seed demo sessions if database is fresh
-        appScope.launch {
-            try {
-                val repo = ScreenStateRepository(this@ScreenPulseApp)
-                repo.seedDemoSessionsIfEmpty()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
         // Start background foreground tracking service
         try {
             ScreenTrackerService.start(this)

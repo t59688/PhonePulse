@@ -10,7 +10,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,15 +24,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,23 +57,22 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
 import com.example.util.TimeFormatter
+import kotlinx.coroutines.delay
 
 @Composable
 fun LivePulseHeroCard(
     isScreenOn: Boolean,
     startTimeMs: Long,
-    durationMs: Long,
     isServiceRunning: Boolean,
-    onSimulateToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Pulse animation
+    // Smooth infinite pulse transition
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_transition")
     val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.25f,
+        initialValue = 0.90f,
+        targetValue = 1.18f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
+            animation = tween(2400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse_scale"
@@ -81,9 +80,9 @@ fun LivePulseHeroCard(
 
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.25f,
-        targetValue = 0.75f,
+        targetValue = 0.70f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
+            animation = tween(2400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse_alpha"
@@ -91,11 +90,9 @@ fun LivePulseHeroCard(
 
     val activeColor by animateColorAsState(
         targetValue = if (isScreenOn) NeonCyan else ElectricViolet,
+        animationSpec = tween(500),
         label = "active_color"
     )
-
-    val digitalClock = TimeFormatter.formatDigitalClock(durationMs)
-    val formattedDuration = TimeFormatter.formatDurationChinese(durationMs)
 
     Box(
         modifier = modifier
@@ -116,7 +113,7 @@ fun LivePulseHeroCard(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        activeColor.copy(alpha = 0.6f),
+                        activeColor.copy(alpha = 0.5f),
                         BorderDark.copy(alpha = 0.4f)
                     )
                 ),
@@ -129,7 +126,7 @@ fun LivePulseHeroCard(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Bar: Status Badge & Service Guard Pill
+            // Top Bar: Status Badge & Guard Pill
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -152,14 +149,14 @@ fun LivePulseHeroCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isScreenOn) "⚡ 屏幕点亮进行中" else "🌙 屏幕休眠熄屏中",
+                        text = if (isScreenOn) "⚡ 屏幕点亮运行中" else "🌙 屏幕休眠熄屏中",
                         color = activeColor,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                // Guard Service Status
+                // Guard Service Status Pill
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -178,7 +175,7 @@ fun LivePulseHeroCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (isServiceRunning) "后台守护中" else "守护未开启",
+                        text = if (isServiceRunning) "后台常驻守护" else "守护未开启",
                         color = if (isServiceRunning) NeonEmerald else AmberWarning,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
@@ -191,8 +188,7 @@ fun LivePulseHeroCard(
             // Pulse Ring Canvas with Glowing Center Timer
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(190.dp)
+                modifier = Modifier.size(190.dp)
             ) {
                 Canvas(modifier = Modifier.size(190.dp)) {
                     val center = Offset(size.width / 2, size.height / 2)
@@ -206,7 +202,7 @@ fun LivePulseHeroCard(
                         style = Stroke(width = 2.dp.toPx())
                     )
 
-                    // Secondary static glow track
+                    // Secondary static track
                     drawCircle(
                         color = BorderDark,
                         radius = baseRadius,
@@ -228,11 +224,11 @@ fun LivePulseHeroCard(
                         style = Stroke(width = 3.5.dp.toPx())
                     )
 
-                    // Inner soft radial bloom
+                    // Inner radial bloom
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                activeColor.copy(alpha = 0.18f),
+                                activeColor.copy(alpha = 0.16f),
                                 Color.Transparent
                             ),
                             center = center,
@@ -243,79 +239,73 @@ fun LivePulseHeroCard(
                     )
                 }
 
-                // Center Display Time & State Icon
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = if (isScreenOn) Icons.Default.WbSunny else Icons.Default.Bedtime,
-                        contentDescription = null,
-                        tint = activeColor,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = digitalClock,
-                        color = TextPrimary,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = (-0.5).sp
-                    )
-                    Text(
-                        text = "本次状态持续",
-                        color = TextTertiary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                // Isolated live timer text component (avoids whole screen jank/recomposition)
+                IsolatedDigitalTimerDisplay(
+                    startTimeMs = startTimeMs,
+                    isScreenOn = isScreenOn,
+                    activeColor = activeColor
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Duration in words & start timestamp
+            // Start timestamp
             Text(
-                text = formattedDuration,
-                color = TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "自 ${TimeFormatter.formatTime(startTimeMs)} 开始计时",
+                text = "从 ${TimeFormatter.formatTime(startTimeMs)} 持续至今",
                 color = TextSecondary,
-                fontSize = 12.sp
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Interactive simulation toggle button for rapid testing / reviewer experience
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(SurfaceElevatedDark)
-                    .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
-                    .clickable { onSimulateToggle() }
-                    .padding(horizontal = 16.dp, vertical = 9.dp)
-                    .testTag("simulate_toggle_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Simulate state toggle",
-                    tint = activeColor,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (isScreenOn) "模拟屏幕熄屏状态" else "模拟屏幕唤醒状态",
-                    color = TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
+            Spacer(modifier = Modifier.height(8.dp))
         }
+    }
+}
+
+/**
+ * Isolated micro-composable that ticks only its own text without recomposing parent or siblings!
+ */
+@Composable
+private fun IsolatedDigitalTimerDisplay(
+    startTimeMs: Long,
+    isScreenOn: Boolean,
+    activeColor: Color
+) {
+    var elapsedMs by remember(startTimeMs) {
+        mutableLongStateOf((System.currentTimeMillis() - startTimeMs).coerceAtLeast(0L))
+    }
+
+    LaunchedEffect(startTimeMs) {
+        while (true) {
+            elapsedMs = (System.currentTimeMillis() - startTimeMs).coerceAtLeast(0L)
+            delay(1000)
+        }
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = if (isScreenOn) Icons.Default.WbSunny else Icons.Default.Bedtime,
+            contentDescription = null,
+            tint = activeColor,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = TimeFormatter.formatDigitalClock(elapsedMs),
+            color = TextPrimary,
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = (-0.5).sp
+        )
+        Text(
+            text = "本次状态已持续",
+            color = TextTertiary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

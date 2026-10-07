@@ -1,6 +1,6 @@
 package com.example.data
 
-import android.graphics.drawable.Drawable
+import androidx.compose.ui.graphics.ImageBitmap
 
 data class AppUsageInfo(
     val packageName: String,
@@ -8,6 +8,8 @@ data class AppUsageInfo(
     val totalTimeInForegroundMs: Long,
     val lastTimeUsedMs: Long,
     val launchCount: Int = 0,
-    val icon: Drawable? = null,
-    val percentageOfTotal: Float = 0f
+    val iconBitmap: ImageBitmap? = null,
+    val percentageOfTotal: Float = 0f,
+    val estimatedBatteryDrainPct: Float = 0f,
+    val estimatedMah: Int = 0
 )

@@ -35,6 +35,9 @@ interface ScreenSessionDao {
     @Query("SELECT COUNT(*) FROM screen_sessions WHERE dateKey = :dateKey AND type = 'SCREEN_ON'")
     fun getWakeCountForDate(dateKey: String): Flow<Int>
 
+    @Query("SELECT * FROM screen_sessions WHERE dateKey = :dateKey AND type = 'SCREEN_ON' ORDER BY startTime ASC")
+    suspend fun getScreenOnSessionsForDateSync(dateKey: String): List<ScreenSession>
+
     @Query("DELETE FROM screen_sessions")
     suspend fun clearAll()
 

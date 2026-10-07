@@ -100,6 +100,7 @@ fun MainScreen(
 
     val lastScreenOffDurationMs by viewModel.lastScreenOffDurationMs.collectAsState()
     val lastScreenOnDurationMs by viewModel.lastScreenOnDurationMs.collectAsState()
+    val liveBattery by viewModel.liveBattery.collectAsState()
     val todayTotalScreenOnMs by viewModel.todayTotalScreenOnMs.collectAsState()
     val todayTotalScreenOffMs by viewModel.todayTotalScreenOffMs.collectAsState()
     val todayWakeCount by viewModel.todayWakeCount.collectAsState()
@@ -200,16 +201,15 @@ fun MainScreen(
                         OverviewScreen(
                             isScreenOn = isScreenOn,
                             stateStartTimeMs = stateStartTimeMs,
-                            currentDurationMs = currentDurationMs,
                             isServiceRunning = isServiceRunning,
                             lastScreenOffDurationMs = lastScreenOffDurationMs,
                             lastScreenOnDurationMs = lastScreenOnDurationMs,
                             todayTotalScreenOnMs = todayTotalScreenOnMs,
                             todayTotalScreenOffMs = todayTotalScreenOffMs,
                             todayWakeCount = todayWakeCount,
+                            batteryInfo = liveBattery,
                             hourlyStats = hourlyStats,
                             recentSessions = allSessions,
-                            onSimulateToggle = { viewModel.simulateStateToggle() },
                             onNavigateToHistory = { currentTab = ScreenTab.HISTORY }
                         )
                     }

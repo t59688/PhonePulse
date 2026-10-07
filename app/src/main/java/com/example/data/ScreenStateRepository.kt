@@ -47,19 +47,14 @@ class ScreenStateRepository(private val context: Context) {
 
     suspend fun getHourlyBreakdown(dateKey: String = TimeFormatter.todayKey()): List<HourlyScreenStat> = withContext(Dispatchers.IO) {
         val hourlyMinutes = FloatArray(24) { 0f }
-        val startOfDay = TimeFormatter.getStartOfDay()
-
-        // Distribute screen-on sessions into hours
-        // For accurate real-time display, retrieve sessions since start of day
+        val sessions = dao.getScreenOnSessionsForDateSync(dateKey)
         val cal = Calendar.getInstance()
-        val currentHour = cal.get(Calendar.HOUR_OF_DAY)
 
-        // Seed with baseline activity if today just started or sessions exist
-        val list = dao.getLastSessionByTypeSync("SCREEN_ON")
-        if (list != null) {
-            cal.timeInMillis = list.startTime
-            val h = cal.get(Calendar.HOUR_OF_DAY).coerceIn(0, 23)
-            hourlyMinutes[h] += (list.durationMs / (60 * 1000f)).coerceAtMost(60f)
+        for (session in sessions) {
+            cal.timeInMillis = session.startTime
+            val startHour = cal.get(Calendar.HOUR_OF_DAY).coerceIn(0, 23)
+            val minutes = (session.durationMs / (60 * 1000f))
+            hourlyMinutes[startHour] = (hourlyMinutes[startHour] + minutes).coerceAtMost(60f)
         }
 
         hourlyMinutes.mapIndexed { index, minutes ->
@@ -68,83 +63,80 @@ class ScreenStateRepository(private val context: Context) {
     }
 
     /**
-     * Seeds realistic demo data if the user wants to see an immediate rich dashboard with history and charts
+     * Seeds realistic demo data only if user explicitly clicks the inject button
      */
-    suspend fun seedDemoSessionsIfEmpty() = withContext(Dispatchers.IO) {
+    suspend fun injectSampleDemoData() = withContext(Dispatchers.IO) {
         val today = TimeFormatter.todayKey()
-        val existing = dao.getLastSessionByTypeSync("SCREEN_ON")
-        if (existing == null) {
-            val now = System.currentTimeMillis()
-            val demo = mutableListOf<ScreenSession>()
+        val now = System.currentTimeMillis()
+        val demo = mutableListOf<ScreenSession>()
 
-            // 5 realistic sessions over the last 8 hours
-            var cursor = now - 8 * 3600 * 1000L
+        // 5 realistic sessions over the last 8 hours
+        var cursor = now - 8 * 3600 * 1000L
 
-            // 1. Slept / screen off overnight (6h 20m)
-            val sleepDur = 6 * 3600 * 1000L + 20 * 60 * 1000L
-            demo.add(
-                ScreenSession(
-                    type = "SCREEN_OFF",
-                    startTime = cursor,
-                    endTime = cursor + sleepDur,
-                    durationMs = sleepDur,
-                    dateKey = today
-                )
+        // 1. Slept / screen off overnight (6h 20m)
+        val sleepDur = 6 * 3600 * 1000L + 20 * 60 * 1000L
+        demo.add(
+            ScreenSession(
+                type = "SCREEN_OFF",
+                startTime = cursor,
+                endTime = cursor + sleepDur,
+                durationMs = sleepDur,
+                dateKey = today
             )
-            cursor += sleepDur
+        )
+        cursor += sleepDur
 
-            // 2. Morning wakeup screen on (18m 30s)
-            val wake1 = 18 * 60 * 1000L + 30 * 1000L
-            demo.add(
-                ScreenSession(
-                    type = "SCREEN_ON",
-                    startTime = cursor,
-                    endTime = cursor + wake1,
-                    durationMs = wake1,
-                    dateKey = today
-                )
+        // 2. Morning wakeup screen on (18m 30s)
+        val wake1 = 18 * 60 * 1000L + 30 * 1000L
+        demo.add(
+            ScreenSession(
+                type = "SCREEN_ON",
+                startTime = cursor,
+                endTime = cursor + wake1,
+                durationMs = wake1,
+                dateKey = today
             )
-            cursor += wake1
+        )
+        cursor += wake1
 
-            // 3. Commute screen off (42m)
-            val off1 = 42 * 60 * 1000L
-            demo.add(
-                ScreenSession(
-                    type = "SCREEN_OFF",
-                    startTime = cursor,
-                    endTime = cursor + off1,
-                    durationMs = off1,
-                    dateKey = today
-                )
+        // 3. Commute screen off (42m)
+        val off1 = 42 * 60 * 1000L
+        demo.add(
+            ScreenSession(
+                type = "SCREEN_OFF",
+                startTime = cursor,
+                endTime = cursor + off1,
+                durationMs = off1,
+                dateKey = today
             )
-            cursor += off1
+        )
+        cursor += off1
 
-            // 4. Working / phone check screen on (34m 15s)
-            val wake2 = 34 * 60 * 1000L + 15 * 1000L
-            demo.add(
-                ScreenSession(
-                    type = "SCREEN_ON",
-                    startTime = cursor,
-                    endTime = cursor + wake2,
-                    durationMs = wake2,
-                    dateKey = today
-                )
+        // 4. Working / phone check screen on (34m 15s)
+        val wake2 = 34 * 60 * 1000L + 15 * 1000L
+        demo.add(
+            ScreenSession(
+                type = "SCREEN_ON",
+                startTime = cursor,
+                endTime = cursor + wake2,
+                durationMs = wake2,
+                dateKey = today
             )
-            cursor += wake2
+        )
+        cursor += wake2
 
-            // 5. Last screen off before current open (1h 10m)
-            val off2 = 70 * 60 * 1000L
-            demo.add(
-                ScreenSession(
-                    type = "SCREEN_OFF",
-                    startTime = cursor,
-                    endTime = cursor + off2,
-                    durationMs = off2,
-                    dateKey = today
-                )
+        // 5. Last screen off before current open (1h 10m)
+        val off2 = 70 * 60 * 1000L
+        demo.add(
+            ScreenSession(
+                type = "SCREEN_OFF",
+                startTime = cursor,
+                endTime = cursor + off2,
+                durationMs = off2,
+                dateKey = today
             )
+        )
 
-            dao.insertAll(demo)
-        }
+        dao.insertAll(demo)
     }
 }

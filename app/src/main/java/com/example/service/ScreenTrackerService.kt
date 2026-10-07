@@ -12,23 +12,22 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 import com.example.R
+import com.example.data.BatteryRepository
 import com.example.util.TimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class ScreenTrackerService : Service() {
 
     private val serviceJob = SupervisorJob()
-    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
-    private var notificationUpdateJob: Job? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
+    private var batteryRepo: BatteryRepository? = null
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -37,17 +36,22 @@ class ScreenTrackerService : Service() {
                 Intent.ACTION_SCREEN_ON -> {
                     ScreenStateHolder.onScreenStateChanged(ctx, true)
                     updateNotification()
+                    recordBatteryPoint()
                 }
                 Intent.ACTION_SCREEN_OFF -> {
                     ScreenStateHolder.onScreenStateChanged(ctx, false)
                     updateNotification()
+                    recordBatteryPoint()
                 }
                 Intent.ACTION_USER_PRESENT -> {
-                    // Screen unlocked
                     if (!ScreenStateHolder.isScreenOn.value) {
                         ScreenStateHolder.onScreenStateChanged(ctx, true)
                         updateNotification()
+                        recordBatteryPoint()
                     }
+                }
+                Intent.ACTION_BATTERY_CHANGED -> {
+                    recordBatteryPoint()
                 }
             }
         }
@@ -55,19 +59,19 @@ class ScreenTrackerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        batteryRepo = BatteryRepository(this)
         createNotificationChannel()
 
-        // Register screen on/off receiver
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_BATTERY_CHANGED)
         }
         registerReceiver(screenReceiver, filter)
 
         ScreenStateHolder.setServiceRunning(true)
 
-        // Start as foreground service
         val initialNotification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -79,16 +83,15 @@ class ScreenTrackerService : Service() {
             startForeground(NOTIFICATION_ID, initialNotification)
         }
 
-        // Start periodic notification updater (every 3 seconds to keep notification fresh without battery drain)
-        startNotificationUpdater()
+        recordBatteryPoint()
     }
 
-    private fun startNotificationUpdater() {
-        notificationUpdateJob?.cancel()
-        notificationUpdateJob = serviceScope.launch {
-            while (isActive) {
-                delay(3000)
-                updateNotification()
+    private fun recordBatteryPoint() {
+        serviceScope.launch {
+            try {
+                batteryRepo?.recordBatterySnapshot()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -104,20 +107,19 @@ class ScreenTrackerService : Service() {
 
     private fun buildNotification(): Notification {
         val isScreenOn = ScreenStateHolder.isScreenOn.value
-        val durationMs = ScreenStateHolder.currentDurationMs.value
-        val formattedDuration = TimeFormatter.formatDurationCompact(durationMs)
+        val startTime = ScreenStateHolder.stateStartTime.value
         val lastOff = ScreenStateHolder.lastScreenOffDuration.value
 
-        val title = if (isScreenOn) {
-            "⚡ 屏幕已点亮 · 正在计时"
-        } else {
-            "🌙 屏幕已关闭 · 熄屏计时中"
-        }
+        val title = if (isScreenOn) "⚡ 屏幕点亮 · 正在计时" else "🌙 屏幕休眠 · 熄屏计时中"
 
         val contentText = buildString {
-            append("本次状态已持续: $formattedDuration")
-            if (lastOff != null && isScreenOn) {
-                append(" ｜ 上次熄屏: ${TimeFormatter.formatDurationCompact(lastOff)}")
+            if (isScreenOn) {
+                if (lastOff != null) {
+                    append("上次熄屏: ${TimeFormatter.formatDurationCompact(lastOff)} ｜ ")
+                }
+                append("自 ${TimeFormatter.formatTime(startTime)} 持续亮屏")
+            } else {
+                append("自 ${TimeFormatter.formatTime(startTime)} 开始熄屏休眠")
             }
         }
 
@@ -131,6 +133,11 @@ class ScreenTrackerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Calculate chronometer base for hardware-efficient real-time timer in notification
+        val elapsedRealtimeNow = SystemClock.elapsedRealtime()
+        val delta = System.currentTimeMillis() - startTime
+        val chronometerBase = elapsedRealtimeNow - delta
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(contentText)
@@ -138,6 +145,9 @@ class ScreenTrackerService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
+            .setWhen(startTime)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
@@ -173,7 +183,6 @@ class ScreenTrackerService : Service() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        notificationUpdateJob?.cancel()
         serviceJob.cancel()
         ScreenStateHolder.setServiceRunning(false)
     }

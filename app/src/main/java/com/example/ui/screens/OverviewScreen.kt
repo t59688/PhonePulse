@@ -32,8 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.HourlyScreenStat
+import com.example.data.LiveBatteryInfo
 import com.example.data.ScreenSession
 import com.example.ui.components.ActivityBarChart
+import com.example.ui.components.BatteryStatsCard
 import com.example.ui.components.BentoStatCards
 import com.example.ui.components.LivePulseHeroCard
 import com.example.ui.theme.BorderDark
@@ -49,16 +51,15 @@ import com.example.util.TimeFormatter
 fun OverviewScreen(
     isScreenOn: Boolean,
     stateStartTimeMs: Long,
-    currentDurationMs: Long,
     isServiceRunning: Boolean,
     lastScreenOffDurationMs: Long?,
     lastScreenOnDurationMs: Long?,
     todayTotalScreenOnMs: Long,
     todayTotalScreenOffMs: Long,
     todayWakeCount: Int,
+    batteryInfo: LiveBatteryInfo,
     hourlyStats: List<HourlyScreenStat>,
     recentSessions: List<ScreenSession>,
-    onSimulateToggle: () -> Unit,
     onNavigateToHistory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -70,13 +71,11 @@ fun OverviewScreen(
     ) {
         item {
             Spacer(modifier = Modifier.height(6.dp))
-            // Live Hero Pulse Card
+            // Live Hero Pulse Card (Real-time timer & state, no mock toggle button)
             LivePulseHeroCard(
                 isScreenOn = isScreenOn,
                 startTimeMs = stateStartTimeMs,
-                durationMs = currentDurationMs,
-                isServiceRunning = isServiceRunning,
-                onSimulateToggle = onSimulateToggle
+                isServiceRunning = isServiceRunning
             )
         }
 
@@ -88,6 +87,13 @@ fun OverviewScreen(
                 todayTotalScreenOnMs = todayTotalScreenOnMs,
                 todayTotalScreenOffMs = todayTotalScreenOffMs,
                 todayWakeCount = todayWakeCount
+            )
+        }
+
+        item {
+            // Battery & Drain Statistics Card
+            BatteryStatsCard(
+                batteryInfo = batteryInfo
             )
         }
 
@@ -136,7 +142,7 @@ fun OverviewScreen(
             }
         }
 
-        // Recent 3 items
+        // Recent items
         val displaySessions = recentSessions.take(4)
         if (displaySessions.isEmpty()) {
             item {
@@ -157,7 +163,7 @@ fun OverviewScreen(
                 }
             }
         } else {
-            items(displaySessions.size) { index ->
+            items(displaySessions.size, key = { displaySessions[it].id }) { index ->
                 val session = displaySessions[index]
                 RecentSessionRow(session = session)
             }

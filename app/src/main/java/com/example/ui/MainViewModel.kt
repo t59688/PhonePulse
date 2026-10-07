@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppUsageInfo
+import com.example.data.BatteryRepository
 import com.example.data.HourlyScreenStat
+import com.example.data.LiveBatteryInfo
 import com.example.data.ScreenSession
 import com.example.data.ScreenStateRepository
 import com.example.data.UsagePeriod
@@ -12,7 +14,6 @@ import com.example.data.UsageStatsRepository
 import com.example.service.ScreenStateHolder
 import com.example.service.ScreenTrackerService
 import com.example.util.KeepAliveHelper
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val screenRepo = ScreenStateRepository(application)
     private val usageRepo = UsageStatsRepository(application)
+    private val batteryRepo = BatteryRepository(application)
 
     val isScreenOn: StateFlow<Boolean> = ScreenStateHolder.isScreenOn
     val stateStartTimeMs: StateFlow<Long> = ScreenStateHolder.stateStartTime
@@ -32,6 +34,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val lastScreenOffDurationMs: StateFlow<Long?> = ScreenStateHolder.lastScreenOffDuration
     val lastScreenOnDurationMs: StateFlow<Long?> = ScreenStateHolder.lastScreenOnDuration
+
+    val liveBattery: StateFlow<LiveBatteryInfo> = batteryRepo.liveBattery
 
     val todayTotalScreenOnMs: StateFlow<Long> = screenRepo.getTodayTotalScreenOnMs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
@@ -77,6 +81,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _hasUsagePermission.value = usageRepo.hasUsageStatsPermission()
         _isBatteryIgnoring.value = KeepAliveHelper.isIgnoringBatteryOptimizations(app)
         _hasNotificationPermission.value = KeepAliveHelper.hasNotificationPermission(app)
+        viewModelScope.launch {
+            batteryRepo.recordBatterySnapshot()
+        }
     }
 
     fun refreshHourlyStats() {
@@ -95,15 +102,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isAppUsageLoading.value = true
             _hasUsagePermission.value = usageRepo.hasUsageStatsPermission()
-            val list = usageRepo.getAppUsageStats(_currentPeriod.value)
+            val drainPct = liveBattery.value.todayTotalDrainPct.toFloat().coerceAtLeast(12f)
+            val list = usageRepo.getAppUsageStats(_currentPeriod.value, todayScreenOnDrainPct = drainPct)
             _appUsageList.value = list
             _isAppUsageLoading.value = false
         }
-    }
-
-    fun simulateStateToggle() {
-        ScreenStateHolder.simulateStateToggle(getApplication())
-        refreshHourlyStats()
     }
 
     fun toggleService(enable: Boolean) {
@@ -124,7 +127,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun injectSampleData() {
         viewModelScope.launch {
-            screenRepo.seedDemoSessionsIfEmpty()
+            screenRepo.injectSampleDemoData()
             refreshHourlyStats()
         }
     }
