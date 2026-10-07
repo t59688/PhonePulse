@@ -15,4 +15,12 @@
 .cxx
 local.properties
 .env
+.env.android.local
 debug.keystore
+my-upload-key.jks
+*.jks
+.android-signing/
+!gradle/wrapper/gradle-wrapper.jar
+/artifacts
+app/build
+build/

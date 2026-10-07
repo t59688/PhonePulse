@@ -8,6 +8,45 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+fun deriveVersionCode(versionName: String): Int {
+  val match =
+    Regex("""^(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$""").matchEntire(versionName)
+      ?: error("versionName must be X.Y.Z or X.Y.Z-beta.N, got: $versionName")
+  val major = match.groupValues[1].toInt()
+  val minor = match.groupValues[2].toInt()
+  val patch = match.groupValues[3].toInt()
+  val beta = match.groupValues[4].takeIf { it.isNotEmpty() }?.toInt()
+  require(minor in 0..99 && patch in 0..99) { "minor/patch out of range: $versionName" }
+  if (beta != null) require(beta in 1..998) { "beta number out of range: $versionName" }
+  val core = major * 10000 + minor * 100 + patch
+  return core * 1000 + (beta ?: 999)
+}
+
+// Single source of truth: root VERSION file (CI may override via VERSION_NAME / VERSION_CODE).
+val versionFileVersion =
+  rootProject.file("VERSION").takeIf { it.isFile }?.readText()?.trim().orEmpty()
+val appVersionName = System.getenv("VERSION_NAME") ?: versionFileVersion.ifEmpty { "1.0.0" }
+val appVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: deriveVersionCode(appVersionName)
+
+val releaseKeystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+val releaseStorePassword = System.getenv("STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+val releaseKeyPassword = System.getenv("KEY_PASSWORD")
+val releaseKeystoreFile = file(releaseKeystorePath)
+val hasReleaseSigning =
+  releaseKeystoreFile.isFile &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
+val isReleaseTask =
+  gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+if (isReleaseTask && !hasReleaseSigning) {
+  error(
+    "Release signing is not configured. Provide KEYSTORE_PATH, STORE_PASSWORD, KEY_PASSWORD " +
+      "(and optional KEY_ALIAS)."
+  )
+}
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -16,25 +55,29 @@ android {
     applicationId = "com.aistudio.screenpulse.wvnqlt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = appVersionCode
+    versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      if (hasReleaseSigning) {
+        storeFile = releaseKeystoreFile
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      val debugKeystore = file("${rootDir}/debug.keystore")
+      if (debugKeystore.isFile) {
+        storeFile = debugKeystore
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -43,9 +86,16 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      if (hasReleaseSigning) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      val debugSigning = signingConfigs.getByName("debugConfig")
+      if (debugSigning.storeFile?.isFile == true) {
+        signingConfig = debugSigning
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
