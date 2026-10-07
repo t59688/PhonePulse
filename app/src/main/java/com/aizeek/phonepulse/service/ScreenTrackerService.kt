@@ -10,6 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -31,6 +33,7 @@ class ScreenTrackerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
     private var batteryRepo: BatteryRepository? = null
     private var tickerJob: Job? = null
+    private var largeIconBitmap: Bitmap? = null
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -176,10 +179,14 @@ class ScreenTrackerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Small icon must be a white silhouette (status bar). Do NOT pass adaptive
+        // mipmap/ic_launcher — HyperOS often composites only the foreground on white,
+        // which looks like the old square icon. Large icon uses the precomposed round PNG.
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(contentText)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setLargeIcon(notificationLargeIcon())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
@@ -187,6 +194,15 @@ class ScreenTrackerService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
+    }
+
+    private fun notificationLargeIcon(): Bitmap {
+        largeIconBitmap?.takeIf { !it.isRecycled }?.let { return it }
+        // Precomposed round PNG in drawable-* — never mipmap adaptive XML.
+        val bitmap = BitmapFactory.decodeResource(resources, R.drawable.ic_notification_large)
+            ?: error("ic_notification_large missing")
+        largeIconBitmap = bitmap
+        return bitmap
     }
 
     private fun createNotificationChannel() {

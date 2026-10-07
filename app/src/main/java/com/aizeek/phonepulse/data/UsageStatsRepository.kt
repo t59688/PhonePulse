@@ -3,6 +3,7 @@ package com.aizeek.phonepulse.data
 import android.app.AppOpsManager
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
+import android.app.usage.UsageEvents
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -30,6 +31,42 @@ class UsageStatsRepository(private val context: Context) {
     private val labelCache = ConcurrentHashMap<String, String>()
     private val iconCache = ConcurrentHashMap<String, ImageBitmap>()
 
+    suspend fun getTodayTimeline(packageName: String): AppUsageTimeline = withContext(Dispatchers.IO) {
+        if (!hasUsageStatsPermission()) throw SecurityException("请先授权应用使用情况访问权限")
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: error("系统应用使用情况服务不可用")
+        val now = System.currentTimeMillis()
+        val start = TimeFormatter.getStartOfDay(now)
+        // Look back one day to recover an app that was already resumed at midnight.
+        val source = manager.queryEvents(start - 24 * 3_600_000L, now)
+            ?: error("系统暂未提供使用事件，请解锁设备后重试")
+        val events = mutableListOf<UsageTimelineEvent>()
+        val event = UsageEvents.Event()
+        while (source.hasNextEvent()) {
+            currentCoroutineContext().ensureActive()
+            source.getNextEvent(event)
+            val reset = (Build.VERSION.SDK_INT >= 28 && event.eventType == UsageEvents.Event.SCREEN_NON_INTERACTIVE) ||
+                (Build.VERSION.SDK_INT >= 29 && (event.eventType == UsageEvents.Event.DEVICE_SHUTDOWN ||
+                    event.eventType == UsageEvents.Event.DEVICE_STARTUP))
+            if (reset) {
+                events.add(UsageTimelineEvent(event.timeStamp, UsageTimelineEventType.RESET))
+            } else if (event.packageName == packageName) {
+                @Suppress("DEPRECATION")
+                val type = when {
+                    event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND -> UsageTimelineEventType.RESUME
+                    event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND -> UsageTimelineEventType.PAUSE
+                    Build.VERSION.SDK_INT >= 29 && event.eventType == UsageEvents.Event.ACTIVITY_STOPPED -> UsageTimelineEventType.PAUSE
+                    else -> null
+                }
+                if (type != null) {
+                    val activity = event.className.orEmpty()
+                    events.add(UsageTimelineEvent(event.timeStamp, type, activity))
+                }
+            }
+        }
+        buildAppUsageTimeline(start, now, events)
+    }
+
     fun hasUsageStatsPermission(): Boolean {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
         val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -50,13 +87,11 @@ class UsageStatsRepository(private val context: Context) {
     }
 
     /**
-     * Retrieves application foreground active runtime and total power consumption.
-     * - Active time: Strictly foreground running time (用户在app操作/看/打开的时间).
-     * - Battery consumption: Total power consumed across both foreground and background activity.
+     * Retrieves application foreground active runtime; per-app background power is not exposed by this API.
      */
     suspend fun getAppUsageStats(
         period: UsagePeriod,
-        totalDeviceDrainPct: Float = 20f
+        totalDeviceDrainPct: Float = 0f
     ): List<AppUsageInfo> = withContext(Dispatchers.IO) {
         if (!hasUsageStatsPermission()) {
             return@withContext emptyList()
@@ -148,23 +183,19 @@ class UsageStatsRepository(private val context: Context) {
         // Sort descending by foreground active time initially
         result.sortByDescending { it.totalTimeInForegroundMs }
 
-        // Compute percentage of foreground time and total battery power consumed
-        // Total battery consumed accounts for all power drained by apps (both foreground activity and background operations)
+        // Preserve the optional legacy estimate without fabricating a minimum drain or battery capacity.
         val safeTotal = if (totalAllForegroundMs > 0) totalAllForegroundMs.toFloat() else 1f
-        val effectiveDeviceDrain = totalDeviceDrainPct.coerceAtLeast(8f)
+        val effectiveDeviceDrain = totalDeviceDrainPct.coerceAtLeast(0f)
 
         result.map { item ->
             val fraction = (item.totalTimeInForegroundMs / safeTotal)
             val fgPct = fraction * 100f
 
-            // Total battery drain for this app (foreground computation + background presence)
             val totalDrainPct = (fraction * effectiveDeviceDrain)
-            val totalMah = ((totalDrainPct / 100f) * 4500f).toInt().coerceAtLeast(1)
 
             item.copy(
                 percentageOfTotal = fgPct,
-                estimatedBatteryDrainPct = totalDrainPct,
-                estimatedMah = totalMah
+                estimatedBatteryDrainPct = totalDrainPct
             )
         }
     }

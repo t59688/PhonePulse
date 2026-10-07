@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aizeek.phonepulse.data.AppUsageInfo
+import com.aizeek.phonepulse.data.AppBatteryUsage
+import com.aizeek.phonepulse.data.estimateAppBatteryUsage
 import com.aizeek.phonepulse.data.BatteryRepository
 import com.aizeek.phonepulse.data.BatteryRecord
 import com.aizeek.phonepulse.data.HourlyScreenStat
@@ -22,6 +24,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import com.aizeek.phonepulse.update.UpdateRepository
@@ -69,6 +74,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _appUsageList = MutableStateFlow<List<AppUsageInfo>>(emptyList())
     val appUsageList: StateFlow<List<AppUsageInfo>> = _appUsageList.asStateFlow()
 
+    private val _todayAppUsageList = MutableStateFlow<List<AppUsageInfo>>(emptyList())
+    val todayAppUsageList = _todayAppUsageList.asStateFlow()
+    val appBatteryUsage: StateFlow<List<AppBatteryUsage>> = combine(_todayAppUsageList, todayBatteryRecords) { apps, records ->
+        estimateAppBatteryUsage(apps, records)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _isBatteryAppUsageLoading = MutableStateFlow(false)
+    val isBatteryAppUsageLoading = _isBatteryAppUsageLoading.asStateFlow()
+
     private val _isAppUsageLoading = MutableStateFlow(false)
     val isAppUsageLoading: StateFlow<Boolean> = _isAppUsageLoading.asStateFlow()
 
@@ -111,17 +124,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadAppUsageStats()
     }
 
-    fun loadAppUsageStats(): Job {
+    suspend fun loadAppUsageTimeline(packageName: String) = usageRepo.getTodayTimeline(packageName)
+
+    fun loadAppUsageStats(forBattery: Boolean = false): Job {
         usageLoadJob?.cancel()
+        val period = if (forBattery) UsagePeriod.TODAY else _currentPeriod.value
+        val loading = if (forBattery) _isBatteryAppUsageLoading else _isAppUsageLoading
+        _isAppUsageLoading.value = false
+        _isBatteryAppUsageLoading.value = false
         val job = viewModelScope.launch {
-            _isAppUsageLoading.value = true
+            loading.value = true
             try {
                 _hasUsagePermission.value = usageRepo.hasUsageStatsPermission()
-                val drainPct = liveBattery.value.todayTotalDrainPct.toFloat().coerceAtLeast(12f)
-                val list = usageRepo.getAppUsageStats(_currentPeriod.value, totalDeviceDrainPct = drainPct)
-                _appUsageList.value = list
+                val list = usageRepo.getAppUsageStats(period)
+                if (period == UsagePeriod.TODAY) _todayAppUsageList.value = list
+                if (!forBattery) _appUsageList.value = list
             } finally {
-                if (currentCoroutineContext().isActive) _isAppUsageLoading.value = false
+                if (currentCoroutineContext().isActive) loading.value = false
             }
         }
         usageLoadJob = job
@@ -130,7 +149,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cancelAppUsageLoad(job: Job) {
         job.cancel()
-        if (usageLoadJob === job) _isAppUsageLoading.value = false
+        if (usageLoadJob === job) {
+            _isAppUsageLoading.value = false
+            _isBatteryAppUsageLoading.value = false
+        }
     }
 
     fun toggleService(enable: Boolean) {

@@ -105,8 +105,8 @@ fun MainScreen(
 
     LaunchedEffect(currentTab, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            if (currentTab == ScreenTab.APP_USAGE) {
-                val loadJob = viewModel.loadAppUsageStats()
+            if (currentTab == ScreenTab.APP_USAGE || currentTab == ScreenTab.BATTERY) {
+                val loadJob = viewModel.loadAppUsageStats(forBattery = currentTab == ScreenTab.BATTERY)
                 try {
                     awaitCancellation()
                 } finally {
@@ -245,6 +245,7 @@ fun MainScreen(
                         val currentPeriod by viewModel.currentPeriod.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         val isAppUsageLoading by viewModel.isAppUsageLoading.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         val appUsageList by viewModel.appUsageList.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val appBatteryUsage by viewModel.appBatteryUsage.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         AppUsageScreen(
                             hasPermission = hasUsagePermission,
                             isLoading = isAppUsageLoading,
@@ -252,13 +253,23 @@ fun MainScreen(
                             currentPeriod = currentPeriod,
                             onPeriodSelected = { viewModel.setUsagePeriod(it) },
                             onRequestPermission = { KeepAliveHelper.openUsageAccessSettings(context) },
-                            onRefresh = { viewModel.loadAppUsageStats() }
+                            onRefresh = { viewModel.loadAppUsageStats() },
+                            batteryUsage = appBatteryUsage,
+                            onOpenApp = { if (currentPeriod != com.aizeek.phonepulse.data.UsagePeriod.TODAY) viewModel.loadAppUsageStats(forBattery = true) },
+                            loadTimeline = viewModel::loadAppUsageTimeline
                         )
                     }
                     ScreenTab.BATTERY -> {
                         val todayBatteryRecords by viewModel.todayBatteryRecords.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         val liveBattery by viewModel.liveBattery.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
-                        BatteryScreen(batteryInfo = liveBattery, records = todayBatteryRecords)
+                        val todayAppUsageList by viewModel.todayAppUsageList.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val isBatteryAppUsageLoading by viewModel.isBatteryAppUsageLoading.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        BatteryScreen(batteryInfo = liveBattery, records = todayBatteryRecords,
+                            usageList = todayAppUsageList, hasUsagePermission = hasUsagePermission,
+                            isLoading = isBatteryAppUsageLoading,
+                            onRequestPermission = { KeepAliveHelper.openUsageAccessSettings(context) },
+                            onRefresh = { viewModel.loadAppUsageStats(forBattery = true) },
+                            loadTimeline = viewModel::loadAppUsageTimeline)
                     }
                     ScreenTab.HISTORY -> {
                         val allSessions by viewModel.allSessions.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)

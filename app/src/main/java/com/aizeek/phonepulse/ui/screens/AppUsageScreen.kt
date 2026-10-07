@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aizeek.phonepulse.data.AppUsageInfo
+import com.aizeek.phonepulse.data.AppBatteryUsage
+import com.aizeek.phonepulse.data.AppUsageTimeline
 import com.aizeek.phonepulse.data.UsagePeriod
 import com.aizeek.phonepulse.ui.theme.AmberWarning
 import com.aizeek.phonepulse.ui.theme.BorderDark
@@ -69,9 +73,21 @@ fun AppUsageScreen(
     onPeriodSelected: (UsagePeriod) -> Unit,
     onRequestPermission: () -> Unit,
     onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    batteryUsage: List<AppBatteryUsage> = emptyList(),
+    onOpenApp: () -> Unit = {},
+    loadTimeline: suspend (String) -> AppUsageTimeline? = { null }
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var selectedPackage by rememberSaveable { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
+    val selectedApp = usageList.firstOrNull { it.packageName == selectedPackage }
+    if (selectedApp != null) {
+        AppDetailScreen(selectedApp, currentPeriod,
+            batteryUsage.firstOrNull { it.app.packageName == selectedPackage }, onBack = { selectedPackage = null },
+            loadTimeline = loadTimeline)
+        return
+    }
 
     val filteredList = remember(usageList, searchQuery) {
         val base = if (searchQuery.isBlank()) usageList
@@ -87,6 +103,7 @@ fun AppUsageScreen(
     }
 
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
@@ -319,7 +336,7 @@ fun AppUsageScreen(
             }
         } else {
             items(filteredList, key = { it.packageName }) { app ->
-                AppUsageItemCard(app = app)
+                AppUsageItemCard(app = app, onClick = { selectedPackage = app.packageName; onOpenApp() })
             }
         }
 
@@ -332,6 +349,7 @@ fun AppUsageScreen(
 @Composable
 private fun AppUsageItemCard(
     app: AppUsageInfo,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -340,6 +358,7 @@ private fun AppUsageItemCard(
             .clip(RoundedCornerShape(18.dp))
             .background(SurfaceDark)
             .border(1.dp, BorderDark, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
             .padding(14.dp)
             .testTag("app_usage_card_${app.packageName}")
     ) {

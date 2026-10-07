@@ -4,6 +4,21 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.compose.ui.geometry.Offset
+import com.aizeek.phonepulse.data.buildAppUsageTimeline
+import com.aizeek.phonepulse.data.UsageTimelineEvent
+import com.aizeek.phonepulse.data.UsageTimelineEventType
+import com.aizeek.phonepulse.ui.components.AppUsageChart
+import com.aizeek.phonepulse.util.TimeFormatter
+import com.aizeek.phonepulse.ui.screens.BatteryScreen
+import com.aizeek.phonepulse.data.LiveBatteryInfo
 import com.aizeek.phonepulse.data.AppUsageInfo
 import com.aizeek.phonepulse.data.BatteryRecord
 import com.aizeek.phonepulse.data.UsagePeriod
@@ -21,6 +36,57 @@ import org.robolectric.annotation.Config
 class StatisticsScreenTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test fun `hour chart shows midnight range and responds to selected hour`() {
+        val start = TimeFormatter.getStartOfDay(System.currentTimeMillis())
+        val hour = 3_600_000L
+        val timeline = buildAppUsageTimeline(start, start + 3 * hour, listOf(
+            UsageTimelineEvent(start, UsageTimelineEventType.RESUME),
+            UsageTimelineEvent(start + hour / 2, UsageTimelineEventType.PAUSE),
+            UsageTimelineEvent(start + hour, UsageTimelineEventType.RESUME),
+            UsageTimelineEvent(start + hour + hour / 4, UsageTimelineEventType.PAUSE)))
+        compose.setContent { PhonePulseTheme { AppUsageChart(timeline) } }
+        compose.onNodeWithText("00:00 — 03:00", substring = true).assertIsDisplayed()
+        compose.onNodeWithTag("app_usage_hour_bars").performTouchInput { click(Offset(width * 0.1f, height * 0.5f)) }
+        compose.onNodeWithText("00:00–01:00：30分 0秒").assertIsDisplayed()
+        compose.onNodeWithTag("app_usage_session_band").assertIsDisplayed()
+    }
+
+    @Test fun `empty usage events explain missing history`() {
+        val start = TimeFormatter.getStartOfDay(System.currentTimeMillis())
+        compose.setContent { PhonePulseTheme { AppUsageChart(buildAppUsageTimeline(start, start + 3_600_000, emptyList())) } }
+        compose.onNodeWithText("系统暂未提供可还原的今日前台使用事件。").assertIsDisplayed()
+    }
+
+    @Test fun `battery statistics includes apps and opens detail cards`() {
+        compose.setContent {
+            PhonePulseTheme {
+                BatteryScreen(batteryInfo = LiveBatteryInfo(), records = emptyList(),
+                    usageList = listOf(AppUsageInfo("example.app", "Example", 60_000, 0)),
+                    hasUsagePermission = true)
+            }
+        }
+        compose.onNodeWithTag("battery_statistics_list").performScrollToNode(hasTestTag("app_battery_card_example.app"))
+        compose.onNodeWithTag("app_battery_card_example.app").performClick()
+        compose.onNodeWithTag("app_detail_screen").assertIsDisplayed()
+        compose.onNodeWithText("前台使用时长").assertIsDisplayed()
+        compose.onNodeWithTag("app_detail_screen").performScrollToNode(hasText("今日估算耗电"))
+        compose.onNodeWithText("今日估算耗电").assertIsDisplayed()
+        compose.onNodeWithText("待采集").assertIsDisplayed()
+        compose.onNodeWithTag("app_detail_back").performClick()
+        compose.onNodeWithTag("app_detail_screen").assertDoesNotExist()
+    }
+
+    @Test fun `application activity opens its own detail without mixing periods`() {
+        compose.setContent { PhonePulseTheme {
+            AppUsageScreen(true, false, listOf(AppUsageInfo("example.app", "Example", 60_000, 0)),
+                UsagePeriod.LAST_7_DAYS, {}, {}, {})
+        } }
+        compose.onNodeWithTag("app_usage_card_example.app").performScrollTo().performClick()
+        compose.onNodeWithTag("app_detail_screen").assertIsDisplayed()
+        compose.onNodeWithText("近 7 天").assertIsDisplayed()
+        compose.onNodeWithText("前台使用时长").assertIsDisplayed()
+    }
 
     @Test
     fun `application activity shows duration without mixing in estimated power`() {
