@@ -11,6 +11,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 object ScreenStateHolder {
@@ -22,8 +26,15 @@ object ScreenStateHolder {
     private val _stateStartTime = MutableStateFlow(System.currentTimeMillis())
     val stateStartTime: StateFlow<Long> = _stateStartTime.asStateFlow()
 
-    private val _currentDurationMs = MutableStateFlow(0L)
-    val currentDurationMs: StateFlow<Long> = _currentDurationMs.asStateFlow()
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val currentDurationMs: StateFlow<Long> = stateStartTime.flatMapLatest { startTime ->
+        flow {
+            while (true) {
+                emit((System.currentTimeMillis() - startTime).coerceAtLeast(0L))
+                delay(1000)
+            }
+        }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 0), 0L)
 
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
@@ -33,25 +44,6 @@ object ScreenStateHolder {
 
     private val _lastScreenOnDuration = MutableStateFlow<Long?>(null)
     val lastScreenOnDuration: StateFlow<Long?> = _lastScreenOnDuration.asStateFlow()
-
-    private var tickerRunning = false
-
-    init {
-        startTicker()
-    }
-
-    private fun startTicker() {
-        if (tickerRunning) return
-        tickerRunning = true
-        scope.launch {
-            while (true) {
-                val now = System.currentTimeMillis()
-                val diff = (now - _stateStartTime.value).coerceAtLeast(0L)
-                _currentDurationMs.value = diff
-                delay(1000)
-            }
-        }
-    }
 
     fun setServiceRunning(running: Boolean) {
         _isServiceRunning.value = running
@@ -87,7 +79,6 @@ object ScreenStateHolder {
         // Switch to new state
         _isScreenOn.value = newIsScreenOn
         _stateStartTime.value = now
-        _currentDurationMs.value = 0L
 
         // Persist session to Room in background
         scope.launch(Dispatchers.IO) {

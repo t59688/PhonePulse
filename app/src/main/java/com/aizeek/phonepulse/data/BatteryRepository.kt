@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import androidx.room.withTransaction
 import com.aizeek.phonepulse.service.ScreenStateHolder
 import com.aizeek.phonepulse.util.TimeFormatter
 import kotlinx.coroutines.Dispatchers
@@ -12,9 +13,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 data class LiveBatteryInfo(
     val percentage: Int = 100,
@@ -31,11 +34,14 @@ data class LiveBatteryInfo(
 )
 
 class BatteryRepository(private val context: Context) {
-    private val dao = AppDatabase.getInstance(context).batteryDao()
+    private val database = AppDatabase.getInstance(context)
+    private val dao = database.batteryDao()
 
     private val _liveBattery = MutableStateFlow(readCurrentBattery())
-    val liveBattery: Flow<LiveBatteryInfo> = combine(
-        _liveBattery, getTodayBatteryRecords()
+    val liveBattery: Flow<LiveBatteryInfo> = observeBatteryRecords(getTodayBatteryRecords())
+
+    fun observeBatteryRecords(records: Flow<List<BatteryRecord>>): Flow<LiveBatteryInfo> = combine(
+        _liveBattery, records
     ) { current, records ->
         val latest = records.lastOrNull() ?: return@combine current
         val snapshot = current.copy(
@@ -54,12 +60,11 @@ class BatteryRepository(private val context: Context) {
             totalScreenOnDrainPct = stats.onDrain,
             totalScreenOffDrainPct = stats.offDrain
         )
-    }
+    }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
-    fun readCurrentBattery(): LiveBatteryInfo {
-        val iFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        val batteryStatus: Intent? = context.registerReceiver(null, iFilter)
-
+    fun readCurrentBattery(
+        batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    ): LiveBatteryInfo {
         val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: 100
         val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: 100
         val percentage = if (scale > 0) ((level * 100f) / scale).toInt().coerceIn(0, 100) else level
@@ -100,37 +105,47 @@ class BatteryRepository(private val context: Context) {
         )
     }
 
-    suspend fun recordBatterySnapshot() = withContext(Dispatchers.IO) {
-        val current = readCurrentBattery()
-        val isScreenOn = ScreenStateHolder.isScreenOn.value
+    suspend fun recordBatterySnapshot(
+        current: LiveBatteryInfo? = null,
+        isScreenOn: Boolean = ScreenStateHolder.isScreenOn.value
+    ) = withContext(Dispatchers.IO) {
+        val snapshot = current ?: readCurrentBattery()
         val now = System.currentTimeMillis()
         val today = TimeFormatter.todayKey()
 
         val record = BatteryRecord(
             timestamp = now,
-            level = current.percentage,
+            level = snapshot.percentage,
             scale = 100,
-            percentage = current.percentage,
-            isCharging = current.isCharging,
-            plugType = current.plugType,
-            health = current.health,
-            temperature = current.temperature,
-            voltage = current.voltageMv,
+            percentage = snapshot.percentage,
+            isCharging = snapshot.isCharging,
+            plugType = snapshot.plugType,
+            health = snapshot.health,
+            temperature = snapshot.temperature,
+            voltage = snapshot.voltageMv,
             screenState = if (isScreenOn) "SCREEN_ON" else "SCREEN_OFF",
             dateKey = today
         )
-        dao.insertRecord(record)
-
-        // Compute updated drain stats across all state changes (foreground + background)
-        val todayRecords = dao.getRecordsForDateSync(today)
-        val stats = computeAllDrainStats(todayRecords, current)
-        _liveBattery.value = current.copy(
-            screenOnDrainPerHour = stats.onRate,
-            screenOffDrainPerHour = stats.offRate,
-            todayTotalDrainPct = stats.totalDrain,
-            totalScreenOnDrainPct = stats.onDrain,
-            totalScreenOffDrainPct = stats.offDrain
-        )
+        database.withTransaction {
+            val previous = dao.getLatestRecordSync()
+            val elapsed = previous?.let { now - it.timestamp } ?: Long.MAX_VALUE
+            val stateChanged = previous == null ||
+                previous.percentage != record.percentage ||
+                previous.isCharging != record.isCharging ||
+                previous.plugType != record.plugType ||
+                previous.health != record.health ||
+                previous.screenState != record.screenState ||
+                previous.dateKey != record.dateKey
+            val telemetryChanged = previous != null &&
+                (previous.temperature != record.temperature || previous.voltage != record.voltage)
+            // Preserve state boundaries immediately; coalesce sensor noise and duplicate broadcasts.
+            // The heartbeat only runs when a system event arrives, never waking the device.
+            if (stateChanged || elapsed < 0 || elapsed >= 15 * 60_000L ||
+                (telemetryChanged && elapsed >= 60_000L)) {
+                dao.insertRecord(record)
+            }
+        }
+        _liveBattery.value = snapshot
     }
 
     data class DrainStatsResult(
@@ -200,8 +215,13 @@ class BatteryRepository(private val context: Context) {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun getTodayBatteryRecords(): Flow<List<BatteryRecord>> = flow {
         while (true) {
-            emit(TimeFormatter.todayKey())
-            delay(60_000)
+            val now = System.currentTimeMillis()
+            emit(TimeFormatter.dateKey(now))
+            val nextDay = Calendar.getInstance().apply {
+                timeInMillis = TimeFormatter.getStartOfDay(now)
+                add(Calendar.DATE, 1)
+            }.timeInMillis
+            delay((nextDay - now).coerceAtLeast(1L))
         }
     }.distinctUntilChanged().flatMapLatest { dao.getRecordsForDate(it) }
 }

@@ -1,11 +1,6 @@
 package com.aizeek.phonepulse.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -29,11 +24,8 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +49,9 @@ import com.aizeek.phonepulse.ui.theme.TextPrimary
 import com.aizeek.phonepulse.ui.theme.TextSecondary
 import com.aizeek.phonepulse.ui.theme.TextTertiary
 import com.aizeek.phonepulse.util.TimeFormatter
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 
 @Composable
@@ -66,28 +61,6 @@ fun LivePulseHeroCard(
     isServiceRunning: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Smooth infinite pulse transition
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse_transition")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.90f,
-        targetValue = 1.18f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_scale"
-    )
-
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 0.70f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_alpha"
-    )
-
     val activeColor by animateColorAsState(
         targetValue = if (isScreenOn) NeonCyan else ElectricViolet,
         animationSpec = tween(500),
@@ -185,7 +158,7 @@ fun LivePulseHeroCard(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // Pulse Ring Canvas with Glowing Center Timer
+            // Status ring and timer
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(190.dp)
@@ -194,10 +167,10 @@ fun LivePulseHeroCard(
                     val center = Offset(size.width / 2, size.height / 2)
                     val baseRadius = size.width / 2 - 16.dp.toPx()
 
-                    // Outer pulse wave ring
+                    // Outer status ring
                     drawCircle(
-                        color = activeColor.copy(alpha = pulseAlpha * 0.25f),
-                        radius = baseRadius * pulseScale,
+                        color = activeColor.copy(alpha = 0.12f),
+                        radius = baseRadius * 1.04f,
                         center = center,
                         style = Stroke(width = 2.dp.toPx())
                     )
@@ -210,7 +183,7 @@ fun LivePulseHeroCard(
                         style = Stroke(width = 3.dp.toPx())
                     )
 
-                    // Active animated glow arc
+                    // Active status ring
                     drawCircle(
                         brush = Brush.sweepGradient(
                             listOf(
@@ -271,16 +244,18 @@ private fun IsolatedDigitalTimerDisplay(
     isScreenOn: Boolean,
     activeColor: Color
 ) {
-    var elapsedMs by remember(startTimeMs) {
-        mutableLongStateOf((System.currentTimeMillis() - startTimeMs).coerceAtLeast(0L))
-    }
-
-    LaunchedEffect(startTimeMs) {
-        while (true) {
-            elapsedMs = (System.currentTimeMillis() - startTimeMs).coerceAtLeast(0L)
-            delay(1000)
+    val elapsedFlow = remember(startTimeMs) {
+        flow {
+            while (true) {
+                emit((System.currentTimeMillis() - startTimeMs).coerceAtLeast(0L))
+                delay(1000)
+            }
         }
     }
+    val elapsedMs by elapsedFlow.collectAsStateWithLifecycle(
+        initialValue = (System.currentTimeMillis() - startTimeMs).coerceAtLeast(0L),
+        minActiveState = Lifecycle.State.RESUMED
+    )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

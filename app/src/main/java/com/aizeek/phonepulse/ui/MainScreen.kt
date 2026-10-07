@@ -30,7 +30,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +48,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.awaitCancellation
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aizeek.phonepulse.ui.screens.AppUsageScreen
 import com.aizeek.phonepulse.ui.screens.BatteryScreen
@@ -84,9 +87,8 @@ fun MainScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == LifecycleEventObserver { _, _ -> }.run { Lifecycle.Event.ON_RESUME }) {
+            if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshPermissions()
-                viewModel.loadAppUsageStats()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -95,30 +97,29 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(currentTab, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            if (currentTab == ScreenTab.APP_USAGE) {
+                val loadJob = viewModel.loadAppUsageStats()
+                try {
+                    awaitCancellation()
+                } finally {
+                    viewModel.cancelAppUsageLoad(loadJob)
+                }
+            } else {
+                awaitCancellation()
+            }
+        }
+    }
+
     // State flows
-    val isScreenOn by viewModel.isScreenOn.collectAsState()
-    val stateStartTimeMs by viewModel.stateStartTimeMs.collectAsState()
-    val currentDurationMs by viewModel.currentDurationMs.collectAsState()
-    val isServiceRunning by viewModel.isServiceRunning.collectAsState()
+    val isScreenOn by viewModel.isScreenOn.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+    val stateStartTimeMs by viewModel.stateStartTimeMs.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+    val isServiceRunning by viewModel.isServiceRunning.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
 
-    val lastScreenOffDurationMs by viewModel.lastScreenOffDurationMs.collectAsState()
-    val lastScreenOnDurationMs by viewModel.lastScreenOnDurationMs.collectAsState()
-    val liveBattery by viewModel.liveBattery.collectAsState()
-    val todayBatteryRecords by viewModel.todayBatteryRecords.collectAsState()
-    val todayTotalScreenOnMs by viewModel.todayTotalScreenOnMs.collectAsState()
-    val todayTotalScreenOffMs by viewModel.todayTotalScreenOffMs.collectAsState()
-    val todayWakeCount by viewModel.todayWakeCount.collectAsState()
-
-    val hourlyStats by viewModel.hourlyStats.collectAsState()
-    val allSessions by viewModel.allSessions.collectAsState()
-
-    val appUsageList by viewModel.appUsageList.collectAsState()
-    val isAppUsageLoading by viewModel.isAppUsageLoading.collectAsState()
-    val currentPeriod by viewModel.currentPeriod.collectAsState()
-
-    val hasUsagePermission by viewModel.hasUsagePermission.collectAsState()
-    val isBatteryIgnoring by viewModel.isBatteryIgnoring.collectAsState()
-    val hasNotificationPermission by viewModel.hasNotificationPermission.collectAsState()
+    val hasUsagePermission by viewModel.hasUsagePermission.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+    val isBatteryIgnoring by viewModel.isBatteryIgnoring.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+    val hasNotificationPermission by viewModel.hasNotificationPermission.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
 
     Scaffold(
         topBar = {
@@ -202,6 +203,13 @@ fun MainScreen(
             Crossfade(targetState = currentTab, label = "tab_crossfade") { tab ->
                 when (tab) {
                     ScreenTab.OVERVIEW -> {
+                        val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val hourlyStats by viewModel.hourlyStats.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val todayWakeCount by viewModel.todayWakeCount.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val todayTotalScreenOffMs by viewModel.todayTotalScreenOffMs.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val todayTotalScreenOnMs by viewModel.todayTotalScreenOnMs.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val lastScreenOnDurationMs by viewModel.lastScreenOnDurationMs.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val lastScreenOffDurationMs by viewModel.lastScreenOffDurationMs.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         OverviewScreen(
                             isScreenOn = isScreenOn,
                             stateStartTimeMs = stateStartTimeMs,
@@ -212,11 +220,14 @@ fun MainScreen(
                             todayTotalScreenOffMs = todayTotalScreenOffMs,
                             todayWakeCount = todayWakeCount,
                             hourlyStats = hourlyStats,
-                            recentSessions = allSessions,
+                            recentSessions = recentSessions,
                             onNavigateToHistory = { currentTab = ScreenTab.HISTORY }
                         )
                     }
                     ScreenTab.APP_USAGE -> {
+                        val currentPeriod by viewModel.currentPeriod.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val isAppUsageLoading by viewModel.isAppUsageLoading.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val appUsageList by viewModel.appUsageList.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         AppUsageScreen(
                             hasPermission = hasUsagePermission,
                             isLoading = isAppUsageLoading,
@@ -228,9 +239,12 @@ fun MainScreen(
                         )
                     }
                     ScreenTab.BATTERY -> {
+                        val todayBatteryRecords by viewModel.todayBatteryRecords.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+                        val liveBattery by viewModel.liveBattery.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         BatteryScreen(batteryInfo = liveBattery, records = todayBatteryRecords)
                     }
                     ScreenTab.HISTORY -> {
+                        val allSessions by viewModel.allSessions.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         HistoryTimelineScreen(
                             sessions = allSessions,
                             onClearHistory = { viewModel.clearAllHistory() }

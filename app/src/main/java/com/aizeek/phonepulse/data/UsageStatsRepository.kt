@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.aizeek.phonepulse.util.TimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.util.concurrent.ConcurrentHashMap
 
 enum class UsagePeriod {
@@ -90,6 +92,7 @@ class UsageStatsRepository(private val context: Context) {
         val lastUsedMap = mutableMapOf<String, Long>()
 
         for (stat in usageStatsList) {
+            currentCoroutineContext().ensureActive()
             val fgTime = stat.totalTimeInForeground
             if (fgTime > 0) {
                 aggregatedForeground[stat.packageName] = (aggregatedForeground[stat.packageName] ?: 0L) + fgTime
@@ -105,6 +108,7 @@ class UsageStatsRepository(private val context: Context) {
         var totalAllForegroundMs = 0L
 
         for ((pkg, fgTimeMs) in aggregatedForeground) {
+            currentCoroutineContext().ensureActive()
             // Filter out 0 duration (under 1 second)
             if (fgTimeMs < 1000L) continue
 

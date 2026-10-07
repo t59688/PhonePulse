@@ -51,7 +51,7 @@ class ScreenTrackerService : Service() {
                     }
                 }
                 Intent.ACTION_BATTERY_CHANGED -> {
-                    recordBatteryPoint()
+                    recordBatteryPoint(intent)
                 }
             }
         }
@@ -86,10 +86,14 @@ class ScreenTrackerService : Service() {
         recordBatteryPoint()
     }
 
-    private fun recordBatteryPoint() {
+    private fun recordBatteryPoint(batteryIntent: Intent? = null) {
+        val repository = batteryRepo ?: return
+        val isScreenOn = ScreenStateHolder.isScreenOn.value
         serviceScope.launch {
             try {
-                batteryRepo?.recordBatterySnapshot()
+                val current = if (batteryIntent != null) repository.readCurrentBattery(batteryIntent)
+                    else repository.readCurrentBattery()
+                repository.recordBatterySnapshot(current = current, isScreenOn = isScreenOn)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

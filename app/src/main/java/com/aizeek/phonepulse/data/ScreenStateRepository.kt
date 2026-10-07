@@ -17,6 +17,7 @@ class ScreenStateRepository(private val context: Context) {
     private val dao = AppDatabase.getInstance(context).screenSessionDao()
 
     val allSessions: Flow<List<ScreenSession>> = dao.getAllSessions()
+    val recentSessions: Flow<List<ScreenSession>> = dao.getRecentSessions(4)
 
     fun getSessionsForDate(dateKey: String): Flow<List<ScreenSession>> =
         dao.getSessionsForDate(dateKey)

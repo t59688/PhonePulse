@@ -21,12 +21,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val screenRepo = ScreenStateRepository(application)
     private val usageRepo = UsageStatsRepository(application)
     private val batteryRepo = BatteryRepository(application)
+    private var usageLoadJob: Job? = null
 
     val isScreenOn: StateFlow<Boolean> = ScreenStateHolder.isScreenOn
     val stateStartTimeMs: StateFlow<Long> = ScreenStateHolder.stateStartTime
@@ -36,11 +40,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val lastScreenOffDurationMs: StateFlow<Long?> = ScreenStateHolder.lastScreenOffDuration
     val lastScreenOnDurationMs: StateFlow<Long?> = ScreenStateHolder.lastScreenOnDuration
 
-    val liveBattery: StateFlow<LiveBatteryInfo> = batteryRepo.liveBattery
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), batteryRepo.readCurrentBattery())
-
     val todayBatteryRecords: StateFlow<List<BatteryRecord>> = batteryRepo.getTodayBatteryRecords()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val liveBattery: StateFlow<LiveBatteryInfo> = batteryRepo.observeBatteryRecords(todayBatteryRecords)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), batteryRepo.readCurrentBattery())
 
     val todayTotalScreenOnMs: StateFlow<Long> = screenRepo.getTodayTotalScreenOnMs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
@@ -52,6 +56,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val allSessions: StateFlow<List<ScreenSession>> = screenRepo.allSessions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recentSessions: StateFlow<List<ScreenSession>> = screenRepo.recentSessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _hourlyStats = MutableStateFlow<List<HourlyScreenStat>>(emptyList())
@@ -78,7 +85,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         refreshPermissions()
         refreshHourlyStats()
-        loadAppUsageStats()
     }
 
     fun refreshPermissions() {
@@ -103,15 +109,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadAppUsageStats()
     }
 
-    fun loadAppUsageStats() {
-        viewModelScope.launch {
+    fun loadAppUsageStats(): Job {
+        usageLoadJob?.cancel()
+        val job = viewModelScope.launch {
             _isAppUsageLoading.value = true
-            _hasUsagePermission.value = usageRepo.hasUsageStatsPermission()
-            val drainPct = liveBattery.value.todayTotalDrainPct.toFloat().coerceAtLeast(12f)
-            val list = usageRepo.getAppUsageStats(_currentPeriod.value, totalDeviceDrainPct = drainPct)
-            _appUsageList.value = list
-            _isAppUsageLoading.value = false
+            try {
+                _hasUsagePermission.value = usageRepo.hasUsageStatsPermission()
+                val drainPct = liveBattery.value.todayTotalDrainPct.toFloat().coerceAtLeast(12f)
+                val list = usageRepo.getAppUsageStats(_currentPeriod.value, totalDeviceDrainPct = drainPct)
+                _appUsageList.value = list
+            } finally {
+                if (currentCoroutineContext().isActive) _isAppUsageLoading.value = false
+            }
         }
+        usageLoadJob = job
+        return job
+    }
+
+    fun cancelAppUsageLoad(job: Job) {
+        job.cancel()
+        if (usageLoadJob === job) _isAppUsageLoading.value = false
     }
 
     fun toggleService(enable: Boolean) {

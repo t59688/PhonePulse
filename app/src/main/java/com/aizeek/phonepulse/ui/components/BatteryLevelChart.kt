@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -37,6 +38,7 @@ import com.aizeek.phonepulse.util.TimeFormatter
 fun BatteryLevelChart(records: List<BatteryRecord>, modifier: Modifier = Modifier) {
     val first = records.firstOrNull()
     val last = records.lastOrNull()
+    val segments = remember(records) { records.zipWithNext() }
     Column(
         modifier = modifier.fillMaxWidth()
             .background(SurfaceDark, RoundedCornerShape(24.dp))
@@ -81,7 +83,7 @@ fun BatteryLevelChart(records: List<BatteryRecord>, modifier: Modifier = Modifie
                         inset + (record.timestamp - first.timestamp).toFloat() / duration * plotWidth,
                         inset + (1f - record.percentage.coerceIn(0, 100) / 100f) * plotHeight
                     )
-                    records.zipWithNext().forEach { (previous, next) ->
+                    segments.forEach { (previous, next) ->
                         drawLine(
                             if (previous.isCharging) NeonEmerald else NeonCyan,
                             point(previous), point(next), 2.dp.toPx(), StrokeCap.Round
