@@ -7,10 +7,13 @@ import android.os.BatteryManager
 import com.aizeek.phonepulse.service.ScreenStateHolder
 import com.aizeek.phonepulse.util.TimeFormatter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
 data class LiveBatteryInfo(
@@ -31,7 +34,27 @@ class BatteryRepository(private val context: Context) {
     private val dao = AppDatabase.getInstance(context).batteryDao()
 
     private val _liveBattery = MutableStateFlow(readCurrentBattery())
-    val liveBattery: StateFlow<LiveBatteryInfo> = _liveBattery.asStateFlow()
+    val liveBattery: Flow<LiveBatteryInfo> = combine(
+        _liveBattery, getTodayBatteryRecords()
+    ) { current, records ->
+        val latest = records.lastOrNull() ?: return@combine current
+        val snapshot = current.copy(
+            percentage = latest.percentage,
+            isCharging = latest.isCharging,
+            plugType = latest.plugType,
+            health = latest.health,
+            temperature = latest.temperature,
+            voltageMv = latest.voltage
+        )
+        val stats = computeAllDrainStats(records, snapshot)
+        snapshot.copy(
+            screenOnDrainPerHour = stats.onRate,
+            screenOffDrainPerHour = stats.offRate,
+            todayTotalDrainPct = stats.totalDrain,
+            totalScreenOnDrainPct = stats.onDrain,
+            totalScreenOffDrainPct = stats.offDrain
+        )
+    }
 
     fun readCurrentBattery(): LiveBatteryInfo {
         val iFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
@@ -174,6 +197,11 @@ class BatteryRepository(private val context: Context) {
         )
     }
 
-    fun getTodayBatteryRecords(): Flow<List<BatteryRecord>> =
-        dao.getRecordsForDate(TimeFormatter.todayKey())
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun getTodayBatteryRecords(): Flow<List<BatteryRecord>> = flow {
+        while (true) {
+            emit(TimeFormatter.todayKey())
+            delay(60_000)
+        }
+    }.distinctUntilChanged().flatMapLatest { dao.getRecordsForDate(it) }
 }

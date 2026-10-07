@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Security
@@ -49,6 +50,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aizeek.phonepulse.ui.screens.AppUsageScreen
+import com.aizeek.phonepulse.ui.screens.BatteryScreen
 import com.aizeek.phonepulse.ui.screens.HistoryTimelineScreen
 import com.aizeek.phonepulse.ui.screens.KeepAliveScreen
 import com.aizeek.phonepulse.ui.screens.OverviewScreen
@@ -65,7 +67,8 @@ import com.aizeek.phonepulse.util.KeepAliveHelper
 
 enum class ScreenTab(val title: String, val icon: ImageVector) {
     OVERVIEW("实时概览", Icons.Default.Dashboard),
-    APP_USAGE("应用统计", Icons.Default.Apps),
+    APP_USAGE("应用活跃", Icons.Default.Apps),
+    BATTERY("电量统计", Icons.Default.BatteryFull),
     HISTORY("状态明细", Icons.Default.History),
     KEEP_ALIVE("保活守护", Icons.Default.Security)
 }
@@ -101,6 +104,7 @@ fun MainScreen(
     val lastScreenOffDurationMs by viewModel.lastScreenOffDurationMs.collectAsState()
     val lastScreenOnDurationMs by viewModel.lastScreenOnDurationMs.collectAsState()
     val liveBattery by viewModel.liveBattery.collectAsState()
+    val todayBatteryRecords by viewModel.todayBatteryRecords.collectAsState()
     val todayTotalScreenOnMs by viewModel.todayTotalScreenOnMs.collectAsState()
     val todayTotalScreenOffMs by viewModel.todayTotalScreenOffMs.collectAsState()
     val todayWakeCount by viewModel.todayWakeCount.collectAsState()
@@ -207,7 +211,6 @@ fun MainScreen(
                             todayTotalScreenOnMs = todayTotalScreenOnMs,
                             todayTotalScreenOffMs = todayTotalScreenOffMs,
                             todayWakeCount = todayWakeCount,
-                            batteryInfo = liveBattery,
                             hourlyStats = hourlyStats,
                             recentSessions = allSessions,
                             onNavigateToHistory = { currentTab = ScreenTab.HISTORY }
@@ -223,6 +226,9 @@ fun MainScreen(
                             onRequestPermission = { KeepAliveHelper.openUsageAccessSettings(context) },
                             onRefresh = { viewModel.loadAppUsageStats() }
                         )
+                    }
+                    ScreenTab.BATTERY -> {
+                        BatteryScreen(batteryInfo = liveBattery, records = todayBatteryRecords)
                     }
                     ScreenTab.HISTORY -> {
                         HistoryTimelineScreen(

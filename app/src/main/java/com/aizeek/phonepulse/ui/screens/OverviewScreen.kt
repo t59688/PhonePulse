@@ -32,10 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aizeek.phonepulse.data.HourlyScreenStat
-import com.aizeek.phonepulse.data.LiveBatteryInfo
 import com.aizeek.phonepulse.data.ScreenSession
 import com.aizeek.phonepulse.ui.components.ActivityBarChart
-import com.aizeek.phonepulse.ui.components.BatteryStatsCard
 import com.aizeek.phonepulse.ui.components.BentoStatCards
 import com.aizeek.phonepulse.ui.components.LivePulseHeroCard
 import com.aizeek.phonepulse.ui.theme.BorderDark
@@ -57,7 +55,6 @@ fun OverviewScreen(
     todayTotalScreenOnMs: Long,
     todayTotalScreenOffMs: Long,
     todayWakeCount: Int,
-    batteryInfo: LiveBatteryInfo,
     hourlyStats: List<HourlyScreenStat>,
     recentSessions: List<ScreenSession>,
     onNavigateToHistory: () -> Unit,
@@ -87,13 +84,6 @@ fun OverviewScreen(
                 todayTotalScreenOnMs = todayTotalScreenOnMs,
                 todayTotalScreenOffMs = todayTotalScreenOffMs,
                 todayWakeCount = todayWakeCount
-            )
-        }
-
-        item {
-            // Battery & Drain Statistics Card
-            BatteryStatsCard(
-                batteryInfo = batteryInfo
             )
         }
 

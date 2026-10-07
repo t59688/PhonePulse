@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -61,11 +60,6 @@ import com.aizeek.phonepulse.ui.theme.TextSecondary
 import com.aizeek.phonepulse.ui.theme.TextTertiary
 import com.aizeek.phonepulse.util.TimeFormatter
 
-enum class AppSortMode {
-    BY_ACTIVE_TIME,
-    BY_BATTERY_DRAIN
-}
-
 @Composable
 fun AppUsageScreen(
     hasPermission: Boolean,
@@ -78,26 +72,18 @@ fun AppUsageScreen(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var sortMode by remember { mutableStateOf(AppSortMode.BY_ACTIVE_TIME) }
 
-    val filteredList = remember(usageList, searchQuery, sortMode) {
+    val filteredList = remember(usageList, searchQuery) {
         val base = if (searchQuery.isBlank()) usageList
         else usageList.filter {
             it.appName.contains(searchQuery, ignoreCase = true) ||
             it.packageName.contains(searchQuery, ignoreCase = true)
         }
-        when (sortMode) {
-            AppSortMode.BY_ACTIVE_TIME -> base.sortedByDescending { it.totalTimeInForegroundMs }
-            AppSortMode.BY_BATTERY_DRAIN -> base.sortedByDescending { it.estimatedBatteryDrainPct }
-        }
+        base.sortedByDescending { it.totalTimeInForegroundMs }
     }
 
     val totalForegroundTimeMs = remember(usageList) {
         usageList.sumOf { it.totalTimeInForegroundMs }
-    }
-
-    val totalEstimatedDrainPct = remember(usageList) {
-        usageList.sumOf { it.estimatedBatteryDrainPct.toDouble() }.toFloat()
     }
 
     LazyColumn(
@@ -116,14 +102,14 @@ fun AppUsageScreen(
             ) {
                 Column {
                     Text(
-                        text = "应用活跃与总耗电",
+                        text = "应用活跃",
                         color = TextPrimary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "活跃按前台操作看算 · 耗电计入前后台全部消耗",
+                        text = "查看前台使用时长与活跃占比",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -238,20 +224,11 @@ fun AppUsageScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.ElectricBolt,
-                                contentDescription = null,
-                                tint = AmberWarning,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "应用总耗电: ~${String.format("%.1f", totalEstimatedDrainPct)}% (含前后台) · ${usageList.size} 款应用",
-                                color = TextTertiary,
-                                fontSize = 11.sp
-                            )
-                        }
+                        Text(
+                            text = "${usageList.size} 款活跃应用",
+                            color = TextTertiary,
+                            fontSize = 11.sp
+                        )
                     }
 
                     Box(
@@ -272,7 +249,7 @@ fun AppUsageScreen(
             }
         }
 
-        // Sort mode toggle & Search row
+        // Search row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -306,27 +283,6 @@ fun AppUsageScreen(
                         unfocusedTextColor = TextPrimary
                     )
                 )
-
-                // Sort toggle button
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceDark)
-                        .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
-                        .clickable {
-                            sortMode = if (sortMode == AppSortMode.BY_ACTIVE_TIME) AppSortMode.BY_BATTERY_DRAIN else AppSortMode.BY_ACTIVE_TIME
-                        }
-                        .padding(horizontal = 12.dp, vertical = 14.dp)
-                        .testTag("toggle_sort_mode"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (sortMode == AppSortMode.BY_ACTIVE_TIME) "⏱ 按前台活跃" else "⚡ 按总耗电",
-                        color = NeonCyan,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
             }
         }
 
@@ -443,7 +399,7 @@ private fun AppUsageItemCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Time Duration & Estimated Total Battery Drain
+                // Foreground duration
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -460,22 +416,7 @@ private fun AppUsageItemCard(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.ElectricBolt,
-                            contentDescription = null,
-                            tint = AmberWarning,
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = "~${String.format("%.1f", app.estimatedBatteryDrainPct)}% (${app.estimatedMah}mAh)",
-                            color = AmberWarning,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+
                 }
             }
 

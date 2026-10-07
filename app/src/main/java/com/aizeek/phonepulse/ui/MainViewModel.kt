@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aizeek.phonepulse.data.AppUsageInfo
 import com.aizeek.phonepulse.data.BatteryRepository
+import com.aizeek.phonepulse.data.BatteryRecord
 import com.aizeek.phonepulse.data.HourlyScreenStat
 import com.aizeek.phonepulse.data.LiveBatteryInfo
 import com.aizeek.phonepulse.data.ScreenSession
@@ -36,6 +37,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val lastScreenOnDurationMs: StateFlow<Long?> = ScreenStateHolder.lastScreenOnDuration
 
     val liveBattery: StateFlow<LiveBatteryInfo> = batteryRepo.liveBattery
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), batteryRepo.readCurrentBattery())
+
+    val todayBatteryRecords: StateFlow<List<BatteryRecord>> = batteryRepo.getTodayBatteryRecords()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val todayTotalScreenOnMs: StateFlow<Long> = screenRepo.getTodayTotalScreenOnMs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
