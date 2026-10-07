@@ -1,4 +1,4 @@
-# Build signed release APK/AAB and stage as screenpulse-<VERSION>-release.*
+# Build signed release APK/AAB and stage as phonepulse-<VERSION>-release.*
 # Usage:
 #   .\scripts\build-release.ps1            # apk (default)
 #   .\scripts\build-release.ps1 apk
@@ -31,6 +31,9 @@ foreach ($name in @('KEYSTORE_PATH', 'STORE_PASSWORD', 'KEY_PASSWORD')) {
   if (-not [string]::IsNullOrWhiteSpace((Get-Item "Env:$name" -ErrorAction SilentlyContinue).Value)) { continue }
   throw "Missing $name in .env.android.local"
 }
+if (-not [System.IO.Path]::IsPathRooted($env:KEYSTORE_PATH)) {
+  $env:KEYSTORE_PATH = Join-Path $projectRoot $env:KEYSTORE_PATH
+}
 if (-not (Test-Path $env:KEYSTORE_PATH)) {
   throw "Keystore not found: $env:KEYSTORE_PATH"
 }
@@ -47,7 +50,7 @@ $tasks = @()
 if ($Format -eq 'apk' -or $Format -eq 'all') { $tasks += ':app:assembleRelease' }
 if ($Format -eq 'aab' -or $Format -eq 'all') { $tasks += ':app:bundleRelease' }
 
-Write-Host "Building ScreenPulse $version ($Format)..."
+Write-Host "Building PhonePulse $version ($Format)..."
 & $gradlew @tasks --no-daemon --stacktrace
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -73,13 +76,13 @@ if ($Format -eq 'apk' -or $Format -eq 'all') {
   Copy-NamedArtifact `
     -SearchRoot (Join-Path $projectRoot 'app\build\outputs\apk\release') `
     -Filter '*.apk' `
-    -DestName "screenpulse-$version-release.apk"
+    -DestName "phonepulse-$version-release.apk"
 }
 if ($Format -eq 'aab' -or $Format -eq 'all') {
   Copy-NamedArtifact `
     -SearchRoot (Join-Path $projectRoot 'app\build\outputs\bundle\release') `
     -Filter '*.aab' `
-    -DestName "screenpulse-$version-release.aab"
+    -DestName "phonepulse-$version-release.aab"
 }
 
 Write-Host "Done."

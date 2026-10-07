@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "ScreenPulse"
+rootProject.name = "PhonePulse"
 
 include(":app")

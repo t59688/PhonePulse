@@ -78,23 +78,23 @@ jobs:
 
       - name: Restore release keystore
         env:
-          KEYSTORE_BASE64: ${{ secrets.SCREENPULSE_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.SCREENPULSE_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.SCREENPULSE_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.SCREENPULSE_KEY_ALIAS }}
+          KEYSTORE_BASE64: ${{ secrets.PHONEPULSE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PHONEPULSE_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.PHONEPULSE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PHONEPULSE_KEY_ALIAS }}
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
-            echo "::error::Secret SCREENPULSE_KEYSTORE_BASE64 is missing."
+            echo "::error::Secret PHONEPULSE_KEYSTORE_BASE64 is missing."
             exit 1
           fi
           for name in STORE_PASSWORD KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
-              echo "::error::Secret SCREENPULSE_${name} is missing."
+              echo "::error::Secret PHONEPULSE_${name} is missing."
               exit 1
             fi
           done
-          KEYSTORE_PATH="${RUNNER_TEMP}/screenpulse-release.jks"
+          KEYSTORE_PATH="${RUNNER_TEMP}/phonepulse-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
           {
             echo "KEYSTORE_PATH=${KEYSTORE_PATH}"
@@ -123,8 +123,8 @@ jobs:
           AAB_SRC="$(find app/build/outputs/bundle/release -name '*.aab' -type f | head -n 1)"
           test -f "$APK_SRC"
           test -f "$AAB_SRC"
-          APK_NAME="screenpulse-${VERSION}-release.apk"
-          AAB_NAME="screenpulse-${VERSION}-release.aab"
+          APK_NAME="phonepulse-${VERSION}-release.apk"
+          AAB_NAME="phonepulse-${VERSION}-release.aab"
           cp "$APK_SRC" "artifacts/android/${APK_NAME}"
           cp "$AAB_SRC" "artifacts/android/${AAB_NAME}"
           echo "APK_NAME=${APK_NAME}" >> "$GITHUB_ENV"
@@ -162,5 +162,5 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            artifacts/android/screenpulse-*-release.apk
-            artifacts/android/screenpulse-*-release.aab
+            artifacts/android/phonepulse-*-release.apk
+            artifacts/android/phonepulse-*-release.aab

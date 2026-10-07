@@ -28,11 +28,13 @@ val versionFileVersion =
 val appVersionName = System.getenv("VERSION_NAME") ?: versionFileVersion.ifEmpty { "1.0.0" }
 val appVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: deriveVersionCode(appVersionName)
 
-val releaseKeystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+val releaseKeystorePath = System.getenv("KEYSTORE_PATH") ?: "my-upload-key.jks"
 val releaseStorePassword = System.getenv("STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("KEY_ALIAS") ?: "upload"
 val releaseKeyPassword = System.getenv("KEY_PASSWORD")
-val releaseKeystoreFile = file(releaseKeystorePath)
+val releaseKeystoreFile =
+  rootProject.file(releaseKeystorePath).takeIf { it.isAbsolute || it.exists() }
+    ?: file(releaseKeystorePath)
 val hasReleaseSigning =
   releaseKeystoreFile.isFile &&
     !releaseStorePassword.isNullOrBlank() &&
@@ -48,11 +50,11 @@ if (isReleaseTask && !hasReleaseSigning) {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.aizeek.phonepulse"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.screenpulse.wvnqlt"
+    applicationId = "com.aizeek.phonepulse"
     minSdk = 24
     targetSdk = 36
     versionCode = appVersionCode

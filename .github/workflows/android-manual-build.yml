@@ -40,23 +40,23 @@ jobs:
 
       - name: Restore release keystore
         env:
-          KEYSTORE_BASE64: ${{ secrets.SCREENPULSE_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.SCREENPULSE_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.SCREENPULSE_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.SCREENPULSE_KEY_ALIAS }}
+          KEYSTORE_BASE64: ${{ secrets.PHONEPULSE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PHONEPULSE_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.PHONEPULSE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PHONEPULSE_KEY_ALIAS }}
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
-            echo "::error::Secret SCREENPULSE_KEYSTORE_BASE64 is missing."
+            echo "::error::Secret PHONEPULSE_KEYSTORE_BASE64 is missing."
             exit 1
           fi
           for name in STORE_PASSWORD KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
-              echo "::error::Secret SCREENPULSE_${name} is missing."
+              echo "::error::Secret PHONEPULSE_${name} is missing."
               exit 1
             fi
           done
-          KEYSTORE_PATH="${RUNNER_TEMP}/screenpulse-release.jks"
+          KEYSTORE_PATH="${RUNNER_TEMP}/phonepulse-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
           {
             echo "KEYSTORE_PATH=${KEYSTORE_PATH}"
@@ -87,18 +87,18 @@ jobs:
           if [ "${{ inputs.format }}" = "apk" ] || [ "${{ inputs.format }}" = "all" ]; then
             APK_SRC="$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)"
             test -f "$APK_SRC"
-            cp "$APK_SRC" "artifacts/android/screenpulse-${VERSION}-release.apk"
+            cp "$APK_SRC" "artifacts/android/phonepulse-${VERSION}-release.apk"
           fi
           if [ "${{ inputs.format }}" = "aab" ] || [ "${{ inputs.format }}" = "all" ]; then
             AAB_SRC="$(find app/build/outputs/bundle/release -name '*.aab' -type f | head -n 1)"
             test -f "$AAB_SRC"
-            cp "$AAB_SRC" "artifacts/android/screenpulse-${VERSION}-release.aab"
+            cp "$AAB_SRC" "artifacts/android/phonepulse-${VERSION}-release.aab"
           fi
           ls -lh artifacts/android/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: screenpulse-${{ github.ref_name }}-${{ inputs.format }}-${{ github.run_id }}
+          name: phonepulse-${{ github.ref_name }}-${{ inputs.format }}-${{ github.run_id }}
           path: artifacts/android/*
           retention-days: 14
