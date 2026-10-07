@@ -21,11 +21,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,7 +54,6 @@ import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.BorderDark
 import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.NeonEmerald
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceElevatedDark
 import com.example.ui.theme.TextPrimary
@@ -63,8 +62,8 @@ import com.example.ui.theme.TextTertiary
 import com.example.util.TimeFormatter
 
 enum class AppSortMode {
-    BY_DURATION,
-    BY_BATTERY
+    BY_ACTIVE_TIME,
+    BY_BATTERY_DRAIN
 }
 
 @Composable
@@ -79,7 +78,7 @@ fun AppUsageScreen(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var sortMode by remember { mutableStateOf(AppSortMode.BY_DURATION) }
+    var sortMode by remember { mutableStateOf(AppSortMode.BY_ACTIVE_TIME) }
 
     val filteredList = remember(usageList, searchQuery, sortMode) {
         val base = if (searchQuery.isBlank()) usageList
@@ -88,8 +87,8 @@ fun AppUsageScreen(
             it.packageName.contains(searchQuery, ignoreCase = true)
         }
         when (sortMode) {
-            AppSortMode.BY_DURATION -> base.sortedByDescending { it.totalTimeInForegroundMs }
-            AppSortMode.BY_BATTERY -> base.sortedByDescending { it.estimatedBatteryDrainPct }
+            AppSortMode.BY_ACTIVE_TIME -> base.sortedByDescending { it.totalTimeInForegroundMs }
+            AppSortMode.BY_BATTERY_DRAIN -> base.sortedByDescending { it.estimatedBatteryDrainPct }
         }
     }
 
@@ -117,14 +116,14 @@ fun AppUsageScreen(
             ) {
                 Column {
                     Text(
-                        text = "应用时长与耗电",
+                        text = "应用活跃与总耗电",
                         color = TextPrimary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "各 App 前台运行时间与预估电量消耗",
+                        text = "活跃按前台操作看算 · 耗电计入前后台全部消耗",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -217,11 +216,20 @@ fun AppUsageScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(
-                            text = "前台 App 总时长",
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.TouchApp,
+                                contentDescription = null,
+                                tint = NeonCyan,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "前台活跃操作总时长",
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = TimeFormatter.formatDurationChinese(totalForegroundTimeMs),
@@ -229,7 +237,7 @@ fun AppUsageScreen(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.ElectricBolt,
@@ -239,7 +247,7 @@ fun AppUsageScreen(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "应用累计耗电约 ${String.format("%.1f", totalEstimatedDrainPct)}% · 已统计 ${usageList.size} 款应用",
+                                text = "应用总耗电: ~${String.format("%.1f", totalEstimatedDrainPct)}% (含前后台) · ${usageList.size} 款应用",
                                 color = TextTertiary,
                                 fontSize = 11.sp
                             )
@@ -306,14 +314,14 @@ fun AppUsageScreen(
                         .background(SurfaceDark)
                         .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
                         .clickable {
-                            sortMode = if (sortMode == AppSortMode.BY_DURATION) AppSortMode.BY_BATTERY else AppSortMode.BY_DURATION
+                            sortMode = if (sortMode == AppSortMode.BY_ACTIVE_TIME) AppSortMode.BY_BATTERY_DRAIN else AppSortMode.BY_ACTIVE_TIME
                         }
                         .padding(horizontal = 12.dp, vertical = 14.dp)
                         .testTag("toggle_sort_mode"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (sortMode == AppSortMode.BY_DURATION) "⏱ 按时长" else "⚡ 按耗电",
+                        text = if (sortMode == AppSortMode.BY_ACTIVE_TIME) "⏱ 按前台活跃" else "⚡ 按总耗电",
                         color = NeonCyan,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
@@ -389,7 +397,7 @@ private fun AppUsageItemCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Cached Real App Icon (Rendered with 0ms overhead)
+                    // Cached Real App Icon
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -425,7 +433,7 @@ private fun AppUsageItemCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (app.lastTimeUsedMs > 0) "最近: ${TimeFormatter.formatDateTime(app.lastTimeUsedMs)}" else app.packageName,
+                            text = if (app.lastTimeUsedMs > 0) "最近打开: ${TimeFormatter.formatDateTime(app.lastTimeUsedMs)}" else app.packageName,
                             color = TextTertiary,
                             fontSize = 11.sp,
                             maxLines = 1
@@ -435,14 +443,23 @@ private fun AppUsageItemCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Time Duration & Estimated Battery Drain
+                // Time Duration & Estimated Total Battery Drain
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = TimeFormatter.formatDurationCompact(app.totalTimeInForegroundMs),
-                        color = NeonCyan,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.TouchApp,
+                            contentDescription = null,
+                            tint = NeonCyan,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = TimeFormatter.formatDurationCompact(app.totalTimeInForegroundMs),
+                            color = NeonCyan,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -510,7 +527,7 @@ private fun PermissionRequestBanner(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Android 系统需要授权「有权查看使用情况的应用」后，ScreenPulse 才能获取每个 APP 的真实名称、图标和前台实际运行时间。",
+                text = "Android 系统需要授权「有权查看使用情况的应用」后，ScreenPulse 才能获取每个 APP 的真实名称、系统图标以及用户在前台操作和观看的时间。",
                 color = TextSecondary,
                 fontSize = 12.sp,
                 lineHeight = 16.sp

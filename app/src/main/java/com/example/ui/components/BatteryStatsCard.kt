@@ -17,13 +17,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.DeviceThermostat
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Nightlight
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -96,14 +94,14 @@ fun BatteryStatsCard(
             ) {
                 Column {
                     Text(
-                        text = "电池与耗电统计",
+                        text = "设备耗电全景统计",
                         color = TextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "亮屏与熄屏实时功耗监测",
+                        text = "计入前台与后台全部电量消耗",
                         color = TextTertiary,
                         fontSize = 11.sp
                     )
@@ -200,9 +198,50 @@ fun BatteryStatsCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Screen On vs Screen Off Drain Comparison (Crucial Feature Requested)
+            // Total Device Battery Consumed (Crucial: 前后台综合总耗电)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceDark)
+                    .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.ElectricBolt,
+                            contentDescription = null,
+                            tint = AmberWarning,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "全天累计总耗电 (前台+后台)",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Text(
+                        text = "~${batteryInfo.todayTotalDrainPct}%",
+                        color = AmberWarning,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Screen On vs Screen Off Drain Comparison
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -225,7 +264,7 @@ fun BatteryStatsCard(
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "亮屏功耗", color = TextSecondary, fontSize = 11.sp)
+                            Text(text = "亮屏功耗率", color = TextSecondary, fontSize = 11.sp)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -235,7 +274,7 @@ fun BatteryStatsCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "活跃操作消耗", color = TextTertiary, fontSize = 10.sp)
+                        Text(text = "前台活跃操作消耗", color = TextTertiary, fontSize = 10.sp)
                     }
                 }
 
@@ -257,7 +296,7 @@ fun BatteryStatsCard(
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "熄屏待机", color = TextSecondary, fontSize = 11.sp)
+                            Text(text = "熄屏功耗率", color = TextSecondary, fontSize = 11.sp)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -267,7 +306,7 @@ fun BatteryStatsCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "深度睡眠休眠", color = TextTertiary, fontSize = 10.sp)
+                        Text(text = "后台休眠待机消耗", color = TextTertiary, fontSize = 10.sp)
                     }
                 }
             }

@@ -47,9 +47,14 @@ class UsageStatsRepository(private val context: Context) {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
+    /**
+     * Retrieves application foreground active runtime and total power consumption.
+     * - Active time: Strictly foreground running time (用户在app操作/看/打开的时间).
+     * - Battery consumption: Total power consumed across both foreground and background activity.
+     */
     suspend fun getAppUsageStats(
         period: UsagePeriod,
-        todayScreenOnDrainPct: Float = 15f
+        totalDeviceDrainPct: Float = 20f
     ): List<AppUsageInfo> = withContext(Dispatchers.IO) {
         if (!hasUsageStatsPermission()) {
             return@withContext emptyList()
@@ -80,13 +85,14 @@ class UsageStatsRepository(private val context: Context) {
         }
 
         // Aggregate by packageName
-        val aggregated = mutableMapOf<String, Long>()
+        // totalTimeInForeground is strictly when the app's activity was resumed and visible to the user
+        val aggregatedForeground = mutableMapOf<String, Long>()
         val lastUsedMap = mutableMapOf<String, Long>()
 
         for (stat in usageStatsList) {
-            val totalTime = stat.totalTimeInForeground
-            if (totalTime > 0) {
-                aggregated[stat.packageName] = (aggregated[stat.packageName] ?: 0L) + totalTime
+            val fgTime = stat.totalTimeInForeground
+            if (fgTime > 0) {
+                aggregatedForeground[stat.packageName] = (aggregatedForeground[stat.packageName] ?: 0L) + fgTime
                 val prevLast = lastUsedMap[stat.packageName] ?: 0L
                 if (stat.lastTimeUsed > prevLast) {
                     lastUsedMap[stat.packageName] = stat.lastTimeUsed
@@ -98,61 +104,63 @@ class UsageStatsRepository(private val context: Context) {
         val result = mutableListOf<AppUsageInfo>()
         var totalAllForegroundMs = 0L
 
-        for ((pkg, timeMs) in aggregated) {
-            // Filter out 0 duration
-            if (timeMs < 1000L) continue
+        for ((pkg, fgTimeMs) in aggregatedForeground) {
+            // Filter out 0 duration (under 1 second)
+            if (fgTimeMs < 1000L) continue
 
-            totalAllForegroundMs += timeMs
+            totalAllForegroundMs += fgTimeMs
 
-            // Retrieve real app label (with cache)
+            // Retrieve real app label from system package manager
             val appName = labelCache.getOrPut(pkg) {
                 try {
                     val appInfo = pm.getApplicationInfo(pkg, 0)
                     pm.getApplicationLabel(appInfo).toString()
                 } catch (e: Exception) {
-                    // Friendly fallback name
                     pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() }
                 }
             }
 
-            // Retrieve real app icon (with cache, rendered off-main-thread)
+            // Retrieve real app icon from system package manager (cached as ImageBitmap)
             val iconBitmap = iconCache.getOrPut(pkg) {
                 try {
                     val drawable = pm.getApplicationIcon(pkg)
                     drawableToImageBitmap(drawable)
                 } catch (e: Exception) {
                     null
-                } ?: createPlaceholderBitmap(appName)
+                } ?: createPlaceholderBitmap()
             }
 
             result.add(
                 AppUsageInfo(
                     packageName = pkg,
                     appName = appName,
-                    totalTimeInForegroundMs = timeMs,
+                    totalTimeInForegroundMs = fgTimeMs, // 严格的前台活跃时间（用户在屏幕前操作、观看、打开的时间）
                     lastTimeUsedMs = lastUsedMap[pkg] ?: 0L,
                     iconBitmap = iconBitmap
                 )
             )
         }
 
-        // Sort descending by foreground time
+        // Sort descending by foreground active time initially
         result.sortByDescending { it.totalTimeInForegroundMs }
 
-        // Compute percentage and battery drain estimation
+        // Compute percentage of foreground time and total battery power consumed
+        // Total battery consumed accounts for all power drained by apps (both foreground activity and background operations)
         val safeTotal = if (totalAllForegroundMs > 0) totalAllForegroundMs.toFloat() else 1f
-        val batteryReferencePct = todayScreenOnDrainPct.coerceAtLeast(10f)
+        val effectiveDeviceDrain = totalDeviceDrainPct.coerceAtLeast(8f)
 
         result.map { item ->
             val fraction = (item.totalTimeInForegroundMs / safeTotal)
-            val pct = fraction * 100f
-            val drainPct = fraction * batteryReferencePct
-            val mah = ((drainPct / 100f) * 4500f).toInt().coerceAtLeast(1)
+            val fgPct = fraction * 100f
+
+            // Total battery drain for this app (foreground computation + background presence)
+            val totalDrainPct = (fraction * effectiveDeviceDrain)
+            val totalMah = ((totalDrainPct / 100f) * 4500f).toInt().coerceAtLeast(1)
 
             item.copy(
-                percentageOfTotal = pct,
-                estimatedBatteryDrainPct = drainPct,
-                estimatedMah = mah
+                percentageOfTotal = fgPct,
+                estimatedBatteryDrainPct = totalDrainPct,
+                estimatedMah = totalMah
             )
         }
     }
@@ -168,7 +176,7 @@ class UsageStatsRepository(private val context: Context) {
         return bitmap.asImageBitmap()
     }
 
-    private fun createPlaceholderBitmap(appName: String): ImageBitmap {
+    private fun createPlaceholderBitmap(): ImageBitmap {
         val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(android.graphics.Color.DKGRAY)

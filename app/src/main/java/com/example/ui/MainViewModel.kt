@@ -103,7 +103,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isAppUsageLoading.value = true
             _hasUsagePermission.value = usageRepo.hasUsageStatsPermission()
             val drainPct = liveBattery.value.todayTotalDrainPct.toFloat().coerceAtLeast(12f)
-            val list = usageRepo.getAppUsageStats(_currentPeriod.value, todayScreenOnDrainPct = drainPct)
+            val list = usageRepo.getAppUsageStats(_currentPeriod.value, totalDeviceDrainPct = drainPct)
             _appUsageList.value = list
             _isAppUsageLoading.value = false
         }

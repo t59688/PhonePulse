@@ -22,7 +22,9 @@ data class LiveBatteryInfo(
     val voltageMv: Int = 4000,
     val screenOnDrainPerHour: Float = 0f,
     val screenOffDrainPerHour: Float = 0f,
-    val todayTotalDrainPct: Int = 0
+    val todayTotalDrainPct: Int = 0, // 全设备总耗电量 (前台+后台全部消耗)
+    val totalScreenOnDrainPct: Int = 0, // 亮屏前台耗电
+    val totalScreenOffDrainPct: Int = 0 // 熄屏后台待机耗电
 )
 
 class BatteryRepository(private val context: Context) {
@@ -48,14 +50,14 @@ class BatteryRepository(private val context: Context) {
             BatteryManager.BATTERY_PLUGGED_AC -> "交流电充电"
             BatteryManager.BATTERY_PLUGGED_USB -> "USB 充电"
             BatteryManager.BATTERY_PLUGGED_WIRELESS -> "无线充电"
-            else -> if (isCharging) "充电中" else "放电中"
+            else -> if (isCharging) "充电中" else "放电使用中"
         }
 
         val healthCode = batteryStatus?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1) ?: -1
         val health = when (healthCode) {
-            BatteryManager.BATTERY_HEALTH_GOOD -> "良好 (Good)"
-            BatteryManager.BATTERY_HEALTH_OVERHEAT -> "过热 (Overheat)"
-            BatteryManager.BATTERY_HEALTH_DEAD -> "损坏 (Dead)"
+            BatteryManager.BATTERY_HEALTH_GOOD -> "良好"
+            BatteryManager.BATTERY_HEALTH_OVERHEAT -> "过热"
+            BatteryManager.BATTERY_HEALTH_DEAD -> "损坏"
             BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "电压过高"
             else -> "正常"
         }
@@ -96,23 +98,38 @@ class BatteryRepository(private val context: Context) {
         )
         dao.insertRecord(record)
 
-        // Compute updated drain stats
+        // Compute updated drain stats across all state changes (foreground + background)
         val todayRecords = dao.getRecordsForDateSync(today)
-        val drainStats = computeDrainStats(todayRecords, current)
+        val stats = computeAllDrainStats(todayRecords, current)
         _liveBattery.value = current.copy(
-            screenOnDrainPerHour = drainStats.first,
-            screenOffDrainPerHour = drainStats.second,
-            todayTotalDrainPct = drainStats.third
+            screenOnDrainPerHour = stats.onRate,
+            screenOffDrainPerHour = stats.offRate,
+            todayTotalDrainPct = stats.totalDrain,
+            totalScreenOnDrainPct = stats.onDrain,
+            totalScreenOffDrainPct = stats.offDrain
         )
     }
 
-    private fun computeDrainStats(
+    data class DrainStatsResult(
+        val onRate: Float,
+        val offRate: Float,
+        val totalDrain: Int,
+        val onDrain: Int,
+        val offDrain: Int
+    )
+
+    private fun computeAllDrainStats(
         records: List<BatteryRecord>,
         current: LiveBatteryInfo
-    ): Triple<Float, Float, Int> {
+    ): DrainStatsResult {
         if (records.size < 2) {
-            // Default realistic estimation if fresh
-            return Triple(10.5f, 0.8f, 0)
+            return DrainStatsResult(
+                onRate = 10.8f,
+                offRate = 0.8f,
+                totalDrain = (100 - current.percentage).coerceAtLeast(0),
+                onDrain = ((100 - current.percentage) * 0.75f).toInt(),
+                offDrain = ((100 - current.percentage) * 0.25f).toInt()
+            )
         }
 
         var onDrain = 0
@@ -127,6 +144,7 @@ class BatteryRepository(private val context: Context) {
             val deltaLevel = prev.percentage - next.percentage
             val deltaTime = next.timestamp - prev.timestamp
 
+            // Count ALL battery discharge drops whenever battery decreased
             if (!prev.isCharging && !next.isCharging && deltaLevel > 0 && deltaTime > 0) {
                 totalDrain += deltaLevel
                 if (prev.screenState == "SCREEN_ON") {
@@ -139,13 +157,20 @@ class BatteryRepository(private val context: Context) {
             }
         }
 
-        val onPerHour = if (onTimeMs > 60_000L) (onDrain.toFloat() / (onTimeMs / 3600_000f)) else 11.2f
-        val offPerHour = if (offTimeMs > 60_000L) (offDrain.toFloat() / (offTimeMs / 3600_000f)) else 0.7f
+        val onPerHour = if (onTimeMs > 60_000L) (onDrain.toFloat() / (onTimeMs / 3600_000f)) else 10.8f
+        val offPerHour = if (offTimeMs > 60_000L) (offDrain.toFloat() / (offTimeMs / 3600_000f)) else 0.8f
 
-        return Triple(
-            onPerHour.coerceIn(4f, 35f),
-            offPerHour.coerceIn(0.2f, 5f),
-            totalDrain
+        // Ensure totalDrain reflects real day-drop if records cover earlier points
+        val initialRecord = records.first()
+        val directDrop = (initialRecord.percentage - current.percentage).coerceAtLeast(0)
+        val finalTotalDrain = maxOf(totalDrain, directDrop)
+
+        return DrainStatsResult(
+            onRate = onPerHour.coerceIn(3f, 35f),
+            offRate = offPerHour.coerceIn(0.1f, 5f),
+            totalDrain = finalTotalDrain,
+            onDrain = onDrain,
+            offDrain = offDrain
         )
     }
 
