@@ -2,12 +2,15 @@ package com.aizeek.phonepulse
 
 import android.app.Application
 import android.content.ComponentName
+import android.graphics.BitmapFactory
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Icon
 import android.os.Build
 import com.aizeek.phonepulse.service.ScreenTrackerService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,7 +23,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [24, 36], application = Application::class)
 class NotificationIconTest {
     @Test
-    fun `tracking notification has no secondary image and keeps its status icon`() {
+    fun `tracking notification supplies current MIUI app artwork without a secondary image`() {
         val service = Robolectric.buildService(ScreenTrackerService::class.java).get()
         val method = ScreenTrackerService::class.java.getDeclaredMethod("buildNotification")
         method.isAccessible = true
@@ -28,6 +31,12 @@ class NotificationIconTest {
 
         assertNull(notification.getLargeIcon())
         assertEquals(R.drawable.ic_notification, notification.smallIcon.resId)
+        @Suppress("DEPRECATION")
+        val appIcon = notification.extras.getParcelable<Icon>("miui.appIcon")
+        assertNotNull("MIUI needs explicit artwork instead of its themed app icon", appIcon)
+        val drawable = appIcon!!.loadDrawable(service) as BitmapDrawable
+        val expected = BitmapFactory.decodeResource(service.resources, R.drawable.ic_notification_large)
+        assertTrue("MIUI artwork must match the current round icon", expected.sameAs(drawable.bitmap))
     }
 
     @Test

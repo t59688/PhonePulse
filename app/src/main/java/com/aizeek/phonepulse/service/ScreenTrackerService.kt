@@ -10,7 +10,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.BitmapFactory
+import android.graphics.drawable.Icon
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.aizeek.phonepulse.MainActivity
@@ -31,6 +34,11 @@ class ScreenTrackerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
     private var batteryRepo: BatteryRepository? = null
     private var tickerJob: Job? = null
+    private val notificationAppIcon: Icon by lazy {
+        val bitmap = BitmapFactory.decodeResource(resources, R.drawable.ic_notification_large)
+            ?: error("ic_notification_large missing")
+        Icon.createWithBitmap(bitmap)
+    }
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -176,12 +184,13 @@ class ScreenTrackerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Keep the status icon monochrome. A large icon adds a second image on the
-        // right; HyperOS already displays the application icon on the left.
+        // MIUI may theme the manifest app icon. Supply the composed artwork explicitly;
+        // a large icon would add a second image on the right. AOSP ignores this extra.
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_notification)
+            .addExtras(Bundle().apply { putParcelable("miui.appIcon", notificationAppIcon) })
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
