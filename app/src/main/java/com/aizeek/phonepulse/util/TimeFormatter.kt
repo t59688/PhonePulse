@@ -74,6 +74,29 @@ object TimeFormatter {
         }
     }
 
+    /**
+     * 单一单位时间格式化（只有一个单位，自动进阶变换）：
+     * - 不满 60 秒（< 60s）：显示为 "XX秒" (例如 0秒, 35秒, 59秒)
+     * - 60 秒至 59 分钟（< 60m）：显示为 "XX分" (例如 1分, 25分, 59分)
+     * - 60 分钟及以上（>= 60m）：
+     *   - 如果是整小时（如 60分、120分）："XX小时" (如 1小时, 2小时)
+     *   - 如果在 2 小时以内有零头（如 75分钟、90分钟）："XX分" (保留精确分钟，单一单位)
+     *   - 如果在 2 小时以上有零头（如 8小时20分）："XX小时" (宏观简洁，单一单位)
+     */
+    fun formatSingleUnit(durationMs: Long): String {
+        val totalSeconds = (durationMs / 1000).coerceAtLeast(0)
+        val totalMinutes = totalSeconds / 60
+        val totalHours = totalMinutes / 60
+
+        return when {
+            totalSeconds < 60 -> "${totalSeconds}秒"
+            totalMinutes < 60 -> "${totalMinutes}分"
+            totalMinutes % 60 == 0L -> "${totalHours}小时"
+            totalHours < 2 -> "${totalMinutes}分"
+            else -> "${totalHours}小时"
+        }
+    }
+
     fun getStartOfDay(timestamp: Long = System.currentTimeMillis()): Long {
         val calendar = Calendar.getInstance().apply {
             timeInMillis = timestamp

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.TrendingUp
@@ -70,19 +72,9 @@ fun KeepAliveScreen(
     onRequestBatteryOptimization: () -> Unit,
     onRequestUsagePermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onInjectSampleData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expandedVendorGuide by remember { mutableStateOf(false) }
-
-    // Calculate score
-    val passedCount = listOf(
-        isServiceRunning,
-        isBatteryIgnoring,
-        hasUsagePermission,
-        hasNotificationPermission
-    ).count { it }
-    val score = (passedCount * 25)
 
     LazyColumn(
         modifier = modifier
@@ -109,9 +101,48 @@ fun KeepAliveScreen(
             }
         }
 
-        // Health Score Card
+        keepAliveItems(
+            isServiceRunning = isServiceRunning,
+            isBatteryIgnoring = isBatteryIgnoring,
+            hasUsagePermission = hasUsagePermission,
+            hasNotificationPermission = hasNotificationPermission,
+            onToggleService = onToggleService,
+            onRequestBatteryOptimization = onRequestBatteryOptimization,
+            onRequestUsagePermission = onRequestUsagePermission,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            expandedVendorGuide = expandedVendorGuide,
+            onToggleVendorGuide = { expandedVendorGuide = !expandedVendorGuide }
+        )
+
         item {
-            Box(
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+fun LazyListScope.keepAliveItems(
+    isServiceRunning: Boolean,
+    isBatteryIgnoring: Boolean,
+    hasUsagePermission: Boolean,
+    hasNotificationPermission: Boolean,
+    onToggleService: (Boolean) -> Unit,
+    onRequestBatteryOptimization: () -> Unit,
+    onRequestUsagePermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+    expandedVendorGuide: Boolean,
+    onToggleVendorGuide: () -> Unit
+) {
+    val passedCount = listOf(
+        isServiceRunning,
+        isBatteryIgnoring,
+        hasUsagePermission,
+        hasNotificationPermission
+    ).count { it }
+    val score = (passedCount * 25)
+
+    // Health Score Card
+    item {
+        Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(26.dp))
@@ -160,12 +191,21 @@ fun KeepAliveScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (score == 100) "🛡️ 所有保活机制就绪，守护极其稳定"
-                            else "⚠️ 建议补齐未配置项，避免熄屏被杀",
-                            color = if (score == 100) NeonEmerald else AmberWarning,
-                            fontSize = 12.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (score == 100) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (score == 100) NeonEmerald else AmberWarning,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (score == 100) "所有保活机制就绪，守护极其稳定"
+                                else "建议补齐未配置项，避免熄屏被杀",
+                                color = if (score == 100) NeonEmerald else AmberWarning,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
 
                     Box(
@@ -296,7 +336,7 @@ fun KeepAliveScreen(
                     .clip(RoundedCornerShape(20.dp))
                     .background(SurfaceDark)
                     .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
-                    .clickable { expandedVendorGuide = !expandedVendorGuide }
+                    .clickable { onToggleVendorGuide() }
                     .padding(16.dp)
                     .testTag("vendor_guide_accordion")
             ) {
@@ -307,7 +347,19 @@ fun KeepAliveScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "📱 各品牌手机防杀后台指南", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(
+                                imageVector = Icons.Default.PhoneAndroid,
+                                contentDescription = null,
+                                tint = TextPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "各品牌手机防杀后台指南",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                         Icon(
                             imageVector = if (expandedVendorGuide) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -328,50 +380,10 @@ fun KeepAliveScreen(
                 }
             }
         }
-
-        // Demo Data Injection
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(SurfaceDark)
-                    .border(1.dp, BorderDark, RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "注入体验示例数据", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "快速生成完整的亮屏、熄屏与图表数据以供预览", color = TextTertiary, fontSize = 11.sp)
-                    }
-                    Button(
-                        onClick = onInjectSampleData,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SurfaceElevatedDark,
-                            contentColor = NeonCyan
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("inject_sample_data_btn")
-                    ) {
-                        Text("一键注入", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
-        }
     }
-}
 
 @Composable
-private fun KeepAliveItemCard(
+internal fun KeepAliveItemCard(
     title: String,
     subtitle: String,
     isPassed: Boolean,

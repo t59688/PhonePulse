@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -55,9 +55,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aizeek.phonepulse.ui.screens.AppUsageScreen
 import com.aizeek.phonepulse.ui.screens.BatteryScreen
 import com.aizeek.phonepulse.ui.screens.HistoryTimelineScreen
-import com.aizeek.phonepulse.ui.screens.KeepAliveScreen
 import com.aizeek.phonepulse.ui.screens.OverviewScreen
+import com.aizeek.phonepulse.ui.screens.SettingsScreen
 import com.aizeek.phonepulse.ui.theme.BorderDark
+import com.aizeek.phonepulse.ui.theme.CoralRose
 import com.aizeek.phonepulse.ui.theme.ElectricViolet
 import com.aizeek.phonepulse.ui.theme.NeonCyan
 import com.aizeek.phonepulse.ui.theme.NeonEmerald
@@ -67,20 +68,25 @@ import com.aizeek.phonepulse.ui.theme.TextPrimary
 import com.aizeek.phonepulse.ui.theme.TextSecondary
 import com.aizeek.phonepulse.ui.theme.TextTertiary
 import com.aizeek.phonepulse.util.KeepAliveHelper
+import com.aizeek.phonepulse.ui.components.UpdateHost
+import androidx.compose.runtime.saveable.rememberSaveable
 
 enum class ScreenTab(val title: String, val icon: ImageVector) {
     OVERVIEW("实时概览", Icons.Default.Dashboard),
     APP_USAGE("应用活跃", Icons.Default.Apps),
     BATTERY("电量统计", Icons.Default.BatteryFull),
     HISTORY("状态明细", Icons.Default.History),
-    KEEP_ALIVE("保活守护", Icons.Default.Security)
+    SETTINGS("系统设置", Icons.Default.Settings)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    viewModel: MainViewModel = viewModel()
+    viewModel: MainViewModel = viewModel(),
+    updateOpenRequest: Int = 0
 ) {
+    var showUpdates by rememberSaveable { mutableStateOf(false) }
+    UpdateHost(viewModel.updates, showUpdates, onClose = { showUpdates = false }, openRequest = updateOpenRequest)
     val context = LocalContext.current
     var currentTab by remember { mutableStateOf(ScreenTab.OVERVIEW) }
 
@@ -120,6 +126,7 @@ fun MainScreen(
     val hasUsagePermission by viewModel.hasUsagePermission.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
     val isBatteryIgnoring by viewModel.isBatteryIgnoring.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
     val hasNotificationPermission by viewModel.hasNotificationPermission.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+    val updateState by viewModel.updates.state.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
 
     Scaffold(
         topBar = {
@@ -168,11 +175,21 @@ fun MainScreen(
                         selected = isSelected,
                         onClick = { currentTab = tab },
                         icon = {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.title,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            Box {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.title,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                if (tab == ScreenTab.SETTINGS && updateState.hasUpdate) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(7.dp)
+                                            .background(CoralRose, CircleShape)
+                                    )
+                                }
+                            }
                         },
                         label = {
                             Text(
@@ -250,8 +267,10 @@ fun MainScreen(
                             onClearHistory = { viewModel.clearAllHistory() }
                         )
                     }
-                    ScreenTab.KEEP_ALIVE -> {
-                        KeepAliveScreen(
+                    ScreenTab.SETTINGS -> {
+                        SettingsScreen(
+                            updateRepository = viewModel.updates,
+                            onCheckUpdates = { showUpdates = true },
                             isServiceRunning = isServiceRunning,
                             isBatteryIgnoring = isBatteryIgnoring,
                             hasUsagePermission = hasUsagePermission,
@@ -259,8 +278,7 @@ fun MainScreen(
                             onToggleService = { viewModel.toggleService(it) },
                             onRequestBatteryOptimization = { KeepAliveHelper.requestIgnoreBatteryOptimizations(context) },
                             onRequestUsagePermission = { KeepAliveHelper.openUsageAccessSettings(context) },
-                            onRequestNotificationPermission = { KeepAliveHelper.openAppNotificationSettings(context) },
-                            onInjectSampleData = { viewModel.injectSampleData() }
+                            onRequestNotificationPermission = { KeepAliveHelper.openAppNotificationSettings(context) }
                         )
                     }
                 }

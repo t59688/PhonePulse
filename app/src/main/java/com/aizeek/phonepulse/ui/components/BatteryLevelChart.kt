@@ -10,14 +10,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -47,9 +51,12 @@ fun BatteryLevelChart(records: List<BatteryRecord>, modifier: Modifier = Modifie
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("今日电量变化", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("● 放电 / 使用", color = NeonCyan, fontSize = 11.sp)
-            Text("● 充电", color = NeonEmerald, fontSize = 11.sp)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ChartLegendSwatch(color = NeonCyan, label = "放电 / 使用")
+            ChartLegendSwatch(color = NeonEmerald, label = "充电")
         }
         if (first == null || last == null) {
             Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
@@ -104,5 +111,21 @@ fun BatteryLevelChart(records: List<BatteryRecord>, modifier: Modifier = Modifie
                 Text("仅有一个采样点，继续记录后显示变化曲线", color = TextTertiary, fontSize = 11.sp)
             }
         }
+    }
+}
+
+@Composable
+private fun ChartLegendSwatch(color: Color, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(label, color = color, fontSize = 11.sp)
     }
 }

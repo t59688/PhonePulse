@@ -34,5 +34,31 @@ class ExampleUnitTest {
         assertEquals("3m 12s", TimeFormatter.formatDurationCompact((3 * 60 + 12) * 1000L))
         assertEquals("2h 15m", TimeFormatter.formatDurationCompact((2 * 3600 + 15 * 60 + 10) * 1000L))
     }
+
+    @Test
+    fun testTimeFormatterSingleUnit() {
+        // Less than 60 seconds
+        assertEquals("0秒", TimeFormatter.formatSingleUnit(0L))
+        assertEquals("33秒", TimeFormatter.formatSingleUnit(33000L))
+        assertEquals("59秒", TimeFormatter.formatSingleUnit(59999L))
+
+        // 60 seconds to 59 minutes
+        assertEquals("1分", TimeFormatter.formatSingleUnit(60000L))
+        assertEquals("1分", TimeFormatter.formatSingleUnit(75000L))
+        assertEquals("2分", TimeFormatter.formatSingleUnit(120000L))
+        assertEquals("59分", TimeFormatter.formatSingleUnit(59 * 60 * 1000L))
+
+        // Exact hours
+        assertEquals("1小时", TimeFormatter.formatSingleUnit(60 * 60 * 1000L))
+        assertEquals("2小时", TimeFormatter.formatSingleUnit(2 * 3600 * 1000L))
+
+        // Under 2 hours with fraction: retains minute accuracy in single unit "分"
+        assertEquals("75分", TimeFormatter.formatSingleUnit(75 * 60 * 1000L))
+        assertEquals("90分", TimeFormatter.formatSingleUnit(90 * 60 * 1000L))
+
+        // 2 hours and above: "小时"
+        assertEquals("8小时", TimeFormatter.formatSingleUnit(8 * 3600 * 1000L))
+        assertEquals("8小时", TimeFormatter.formatSingleUnit((8 * 3600 + 15 * 60) * 1000L))
+    }
 }
 

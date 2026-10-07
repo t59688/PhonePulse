@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
+import com.aizeek.phonepulse.update.UpdateRepository
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -31,6 +32,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val usageRepo = UsageStatsRepository(application)
     private val batteryRepo = BatteryRepository(application)
     private var usageLoadJob: Job? = null
+    val updates = UpdateRepository(application)
 
     val isScreenOn: StateFlow<Boolean> = ScreenStateHolder.isScreenOn
     val stateStartTimeMs: StateFlow<Long> = ScreenStateHolder.stateStartTime
@@ -143,13 +145,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAllHistory() {
         viewModelScope.launch {
             screenRepo.clearHistory()
-            refreshHourlyStats()
-        }
-    }
-
-    fun injectSampleData() {
-        viewModelScope.launch {
-            screenRepo.injectSampleDemoData()
             refreshHourlyStats()
         }
     }

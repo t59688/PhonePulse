@@ -332,7 +332,7 @@ private fun TimelineSessionCard(
 
                     Column {
                         Text(
-                            text = if (isScreenOn) "⚡ 亮屏使用阶段" else "🌙 熄屏休眠阶段",
+                            text = if (isScreenOn) "亮屏使用阶段" else "熄屏休眠阶段",
                             color = TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold

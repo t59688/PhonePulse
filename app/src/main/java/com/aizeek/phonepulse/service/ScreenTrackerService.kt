@@ -12,7 +12,6 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.aizeek.phonepulse.MainActivity
 import com.aizeek.phonepulse.R
@@ -20,7 +19,10 @@ import com.aizeek.phonepulse.data.BatteryRepository
 import com.aizeek.phonepulse.util.TimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class ScreenTrackerService : Service() {
@@ -28,6 +30,7 @@ class ScreenTrackerService : Service() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
     private var batteryRepo: BatteryRepository? = null
+    private var tickerJob: Job? = null
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -35,10 +38,11 @@ class ScreenTrackerService : Service() {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON -> {
                     ScreenStateHolder.onScreenStateChanged(ctx, true)
-                    updateNotification()
+                    startTicker()
                     recordBatteryPoint()
                 }
                 Intent.ACTION_SCREEN_OFF -> {
+                    stopTicker()
                     ScreenStateHolder.onScreenStateChanged(ctx, false)
                     updateNotification()
                     recordBatteryPoint()
@@ -46,9 +50,11 @@ class ScreenTrackerService : Service() {
                 Intent.ACTION_USER_PRESENT -> {
                     if (!ScreenStateHolder.isScreenOn.value) {
                         ScreenStateHolder.onScreenStateChanged(ctx, true)
-                        updateNotification()
-                        recordBatteryPoint()
                     }
+                    if (tickerJob?.isActive != true) {
+                        startTicker()
+                    }
+                    recordBatteryPoint()
                 }
                 Intent.ACTION_BATTERY_CHANGED -> {
                     recordBatteryPoint(intent)
@@ -83,7 +89,39 @@ class ScreenTrackerService : Service() {
             startForeground(NOTIFICATION_ID, initialNotification)
         }
 
+        if (ScreenStateHolder.isScreenOn.value) {
+            startTicker()
+        }
+
         recordBatteryPoint()
+    }
+
+    private fun startTicker() {
+        tickerJob?.cancel()
+        tickerJob = serviceScope.launch {
+            while (isActive) {
+                updateNotification()
+                val isScreenOn = ScreenStateHolder.isScreenOn.value
+                if (!isScreenOn) break
+
+                val startTime = ScreenStateHolder.stateStartTime.value
+                val currentDuration = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
+                if (currentDuration < 60_000L) {
+                    // Under 60s: update every second (aligned to the next whole second)
+                    val delayMs = 1000L - (currentDuration % 1000L)
+                    delay(if (delayMs <= 0L) 1000L else delayMs)
+                } else {
+                    // 60s and above: update once every minute (aligned to the next whole minute)
+                    val delayMs = 60_000L - (currentDuration % 60_000L)
+                    delay(if (delayMs <= 0L) 60_000L else delayMs)
+                }
+            }
+        }
+    }
+
+    private fun stopTicker() {
+        tickerJob?.cancel()
+        tickerJob = null
     }
 
     private fun recordBatteryPoint(batteryIntent: Intent? = null) {
@@ -114,17 +152,18 @@ class ScreenTrackerService : Service() {
         val startTime = ScreenStateHolder.stateStartTime.value
         val lastOff = ScreenStateHolder.lastScreenOffDuration.value
 
-        val title = if (isScreenOn) "⚡ 屏幕点亮 · 正在计时" else "🌙 屏幕休眠 · 熄屏计时中"
+        val title = if (isScreenOn) "屏幕点亮 · 正在计时" else "屏幕休眠 · 息屏计时中"
+        val currentDuration = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
+        val lastOn = ScreenStateHolder.lastScreenOnDuration.value
 
-        val contentText = buildString {
-            if (isScreenOn) {
-                if (lastOff != null) {
-                    append("上次熄屏: ${TimeFormatter.formatDurationCompact(lastOff)} ｜ ")
-                }
-                append("自 ${TimeFormatter.formatTime(startTime)} 持续亮屏")
-            } else {
-                append("自 ${TimeFormatter.formatTime(startTime)} 开始熄屏休眠")
-            }
+        val contentText = if (isScreenOn) {
+            val lastOffText = lastOff?.let { TimeFormatter.formatSingleUnit(it) } ?: "--"
+            val currentOnText = TimeFormatter.formatSingleUnit(currentDuration)
+            "上次息屏：$lastOffText | 本次亮屏：$currentOnText"
+        } else {
+            val lastOnText = lastOn?.let { TimeFormatter.formatSingleUnit(it) } ?: "--"
+            val currentOffText = TimeFormatter.formatSingleUnit(currentDuration)
+            "上次亮屏：$lastOnText | 本次息屏：$currentOffText"
         }
 
         val appIntent = Intent(this, MainActivity::class.java).apply {
@@ -137,11 +176,6 @@ class ScreenTrackerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Calculate chronometer base for hardware-efficient real-time timer in notification
-        val elapsedRealtimeNow = SystemClock.elapsedRealtime()
-        val delta = System.currentTimeMillis() - startTime
-        val chronometerBase = elapsedRealtimeNow - delta
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(contentText)
@@ -149,9 +183,7 @@ class ScreenTrackerService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
-            .setWhen(startTime)
-            .setShowWhen(true)
-            .setUsesChronometer(true)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
@@ -174,7 +206,11 @@ class ScreenTrackerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ScreenStateHolder.setServiceRunning(true)
-        updateNotification()
+        if (ScreenStateHolder.isScreenOn.value) {
+            startTicker()
+        } else {
+            updateNotification()
+        }
         return START_STICKY
     }
 
@@ -182,6 +218,7 @@ class ScreenTrackerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopTicker()
         try {
             unregisterReceiver(screenReceiver)
         } catch (e: Exception) {

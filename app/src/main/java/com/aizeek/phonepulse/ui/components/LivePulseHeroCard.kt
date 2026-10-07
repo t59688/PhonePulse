@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
@@ -114,15 +113,15 @@ fun LivePulseHeroCard(
                         .border(1.dp, activeColor.copy(alpha = 0.35f), RoundedCornerShape(30.dp))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(activeColor)
+                    Icon(
+                        imageVector = if (isScreenOn) Icons.Default.WbSunny else Icons.Default.Bedtime,
+                        contentDescription = null,
+                        tint = activeColor,
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isScreenOn) "⚡ 屏幕点亮运行中" else "🌙 屏幕休眠熄屏中",
+                        text = if (isScreenOn) "屏幕点亮运行中" else "屏幕休眠熄屏中",
                         color = activeColor,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
