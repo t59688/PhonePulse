@@ -1,28 +1,12 @@
 package com.aizeek.phonepulse
 
 import android.app.Application
-import com.aizeek.phonepulse.data.ScreenStateRepository
 import com.aizeek.phonepulse.service.ScreenStateHolder
-import com.aizeek.phonepulse.service.ScreenTrackerService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 class PhonePulseApp : Application() {
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
     override fun onCreate() {
         super.onCreate()
-        // Initialize reactive screen state holder
         ScreenStateHolder.initialize(this)
-
-        // Start background foreground tracking service
-        try {
-            ScreenTrackerService.start(this)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 }

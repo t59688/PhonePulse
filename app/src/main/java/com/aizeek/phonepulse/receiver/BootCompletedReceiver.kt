@@ -8,14 +8,18 @@ import com.aizeek.phonepulse.service.ScreenTrackerService
 class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         val ctx = context ?: return
-        if (intent?.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent?.action == "android.intent.action.QUICKBOOT_POWERON"
-        ) {
-            try {
-                ScreenTrackerService.start(ctx)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+        val shouldRestoreTracking = when (intent?.action) {
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            "android.intent.action.QUICKBOOT_POWERON" -> true
+            else -> false
+        }
+        if (!shouldRestoreTracking) return
+
+        try {
+            ScreenTrackerService.start(ctx)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

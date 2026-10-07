@@ -319,11 +319,11 @@ fun LazyListScope.keepAliveItems(
         item {
             KeepAliveItemCard(
                 title = "开机自启广播接收器",
-                subtitle = "已动态配置 BOOT_COMPLETED，手机重启自动恢复计时",
+                subtitle = "已注册开机与应用升级恢复；小米等机型仍需在系统设置允许自启动",
                 isPassed = true,
                 icon = Icons.Default.PowerSettingsNew,
                 trailingContent = {
-                    PassedBadge(label = "已就绪")
+                    PassedBadge(label = "应用侧就绪")
                 }
             )
         }
