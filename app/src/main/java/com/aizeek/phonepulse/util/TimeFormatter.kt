@@ -21,6 +21,14 @@ object TimeFormatter {
 
     fun formatDateTime(timestamp: Long): String = dateTimeFormat.format(Date(timestamp))
 
+    fun formatSampleUpdateTime(timestamp: Long): String {
+        return if (dateKey(timestamp) == todayKey()) {
+            "${formatShortTime(timestamp)} 更新"
+        } else {
+            "${formatDateTime(timestamp)} 更新"
+        }
+    }
+
     /**
      * Formats duration into digital clock style: "01:23:45" or "04:32"
      */

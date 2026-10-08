@@ -177,6 +177,7 @@ private fun coverage(cycle: BatteryCycle): String {
     return if (total > 0) "${percent(cycle.measuredMs / total * 100)}%" else "暂无测量"
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
     val measuring = state.isRunning && state.error == null
@@ -237,10 +238,10 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
                 .padding(16.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = "净电流 $currentFormatted",
@@ -258,9 +259,11 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
                     ) {
                         Icon(Icons.Default.Schedule, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(12.dp))
                         Text(
-                            text = state.lastSampleTime?.let { "最近更新 ${TimeFormatter.formatDateTime(it)}" } ?: "等待首次采样",
+                            text = state.lastSampleTime?.let { TimeFormatter.formatSampleUpdateTime(it) } ?: "等待首次采样",
                             color = TextTertiary,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
