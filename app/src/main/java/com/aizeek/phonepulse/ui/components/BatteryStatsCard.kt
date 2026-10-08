@@ -175,7 +175,7 @@ fun BatteryStatsCard(
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "健康度: ${batteryInfo.health} · 电压: ${batteryInfo.voltageMv}mV",
+                            text = "系统电池状态: ${batteryInfo.health} · 电压: ${batteryInfo.voltageMv}mV",
                             color = TextSecondary,
                             fontSize = 11.sp
                         )
@@ -268,7 +268,7 @@ fun BatteryStatsCard(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "~${String.format("%.1f", batteryInfo.screenOnDrainPerHour)}%/h",
+                            text = if (batteryInfo.screenOnRateKnown) "~${String.format("%.1f", batteryInfo.screenOnDrainPerHour)}%/h" else "待统计",
                             color = NeonCyan,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
@@ -300,7 +300,7 @@ fun BatteryStatsCard(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "~${String.format("%.1f", batteryInfo.screenOffDrainPerHour)}%/h",
+                            text = if (batteryInfo.screenOffRateKnown) "~${String.format("%.1f", batteryInfo.screenOffDrainPerHour)}%/h" else "待统计",
                             color = ElectricViolet,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold

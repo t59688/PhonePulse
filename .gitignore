@@ -24,3 +24,4 @@ my-upload-key.jks
 /artifacts
 app/build
 build/
+thridparty/

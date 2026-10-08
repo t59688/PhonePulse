@@ -15,6 +15,12 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.aizeek.phonepulse.MainActivity
 import com.aizeek.phonepulse.R
+import com.aizeek.phonepulse.PhonePulseApp
+import com.aizeek.phonepulse.battery.AndroidBatteryTelemetrySource
+import com.aizeek.phonepulse.battery.BatteryMonitorRepository
+import com.aizeek.phonepulse.battery.BatteryChargeAlarm
+import com.aizeek.phonepulse.battery.BatteryTelemetry
+import com.aizeek.phonepulse.battery.RecordedBatteryTelemetrySource
 import com.aizeek.phonepulse.data.BatteryRepository
 import com.aizeek.phonepulse.util.TimeFormatter
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +30,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import android.util.Log
 
 class ScreenTrackerService : Service() {
 
@@ -31,6 +40,18 @@ class ScreenTrackerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
     private var batteryRepo: BatteryRepository? = null
     private var tickerJob: Job? = null
+    private lateinit var monitor: BatteryMonitorRepository
+    private lateinit var telemetrySource: AndroidBatteryTelemetrySource
+    private lateinit var chargeAlarm: BatteryChargeAlarm
+    private var samplingJob: Job? = null
+    private var samplingConsumer: Job? = null
+    private var monitorNotificationJob: Job? = null
+    @Volatile private var latestCharging = false
+    private var monitoringOwner = 0L
+    private data class SampleRequest(val telemetry: BatteryTelemetry, val tick: Boolean)
+    private val sampleRequests = Channel<SampleRequest>(Channel.UNLIMITED)
+    private val sampleLock = Any()
+    private var tickQueued = false
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -66,6 +87,10 @@ class ScreenTrackerService : Service() {
     override fun onCreate() {
         super.onCreate()
         batteryRepo = BatteryRepository(this)
+        monitor = (application as PhonePulseApp).batteryMonitor
+        telemetrySource = AndroidBatteryTelemetrySource(this)
+        chargeAlarm = BatteryChargeAlarm(this)
+        monitoringOwner = monitor.beginMonitoring()
         createNotificationChannel()
 
         val filter = IntentFilter().apply {
@@ -79,7 +104,7 @@ class ScreenTrackerService : Service() {
         ScreenStateHolder.setServiceRunning(true)
 
         val initialNotification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NOTIFICATION_ID,
                 initialNotification,
@@ -94,6 +119,7 @@ class ScreenTrackerService : Service() {
         }
 
         recordBatteryPoint()
+        startSampling()
     }
 
     private fun startTicker() {
@@ -125,6 +151,7 @@ class ScreenTrackerService : Service() {
     }
 
     private fun recordBatteryPoint(batteryIntent: Intent? = null) {
+        enqueueSample(batteryIntent)
         val repository = batteryRepo ?: return
         val isScreenOn = ScreenStateHolder.isScreenOn.value
         serviceScope.launch {
@@ -132,8 +159,59 @@ class ScreenTrackerService : Service() {
                 val current = if (batteryIntent != null) repository.readCurrentBattery(batteryIntent)
                     else repository.readCurrentBattery()
                 repository.recordBatterySnapshot(current = current, isScreenOn = isScreenOn)
+            } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    private fun startSampling() {
+        samplingConsumer = serviceScope.launch(Dispatchers.IO) {
+            for (request in sampleRequests) {
+                if (request.tick) synchronized(sampleLock) { tickQueued = false }
+                try {
+                    val cycle = monitor.sample(RecordedBatteryTelemetrySource(request.telemetry),
+                        request.telemetry.screenOn, monitoringOwner)
+                        ?: continue
+                    latestCharging = cycle.charging
+                    val settings = monitor.settings()
+                    if (!cycle.charging || cycle.alarmMuted || !settings.chargeAlarmEnabled) chargeAlarm.cancel()
+                    if (cycle.charging && settings.chargeAlarmEnabled && cycle.endPct >= settings.chargeTargetPct) {
+                        if (chargeAlarm.canNotify()) {
+                            monitor.deliverChargeAlarm(cycle.id, chargeAlarm::show)
+                        } else {
+                            monitor.reportError("充电提醒通知未获授权或已关闭，请在系统设置中开启")
+                        }
+                    }
+                } catch (e: CancellationException) { throw e
+                } catch (e: Exception) {
+                    monitor.reportError("电池采样暂不可用，稍后自动重试")
+                    Log.e("BatteryMonitor", "Battery sample failed", e)
+                }
+            }
+        }
+        samplingJob = serviceScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                enqueueSample(tick = true)
+                delay(if (ScreenStateHolder.isScreenOn.value || latestCharging) 5_000 else 30_000)
+            }
+        }
+        monitorNotificationJob = serviceScope.launch {
+            monitor.state.collect { updateNotification() }
+        }
+    }
+
+    private fun enqueueSample(batteryIntent: Intent? = null, tick: Boolean = false) {
+        // Capture timestamps and state together, in enqueue order. Boundaries must never be conflated.
+        synchronized(sampleLock) {
+            if (tick && tickQueued) return
+            try {
+                val sample = telemetrySource.readSnapshot(ScreenStateHolder.isScreenOn.value, batteryIntent)
+                if (sampleRequests.trySend(SampleRequest(sample, tick)).isSuccess && tick) tickQueued = true
+            } catch (e: Exception) {
+                monitor.reportError("系统电池读数暂不可用，稍后自动重试")
+                Log.e("BatteryMonitor", "Failed to capture battery event", e)
             }
         }
     }
@@ -156,7 +234,7 @@ class ScreenTrackerService : Service() {
         val currentDuration = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
         val lastOn = ScreenStateHolder.lastScreenOnDuration.value
 
-        val contentText = if (isScreenOn) {
+        val screenContent = if (isScreenOn) {
             val lastOffText = lastOff?.let { TimeFormatter.formatSingleUnit(it) } ?: "--"
             val currentOnText = TimeFormatter.formatSingleUnit(currentDuration)
             "上次息屏：$lastOffText | 本次亮屏：$currentOnText"
@@ -165,6 +243,14 @@ class ScreenTrackerService : Service() {
             val currentOffText = TimeFormatter.formatSingleUnit(currentDuration)
             "上次亮屏：$lastOnText | 本次息屏：$currentOffText"
         }
+        val battery = if (::monitor.isInitialized) monitor.state.value else null
+        val batteryContent = battery?.activeCycle?.let { cycle ->
+            val current = battery.currentUa?.let { String.format(java.util.Locale.getDefault(), "%+.0f mA", it / 1000) }
+                ?: "电流暂不可用"
+            val time = if (cycle.charging) battery.estimates.toTargetMs else battery.estimates.mixedRemainingMs
+            "${cycle.endPct}% · $current" + (time?.let { " · 约${TimeFormatter.formatSingleUnit(it)}" } ?: "")
+        }
+        val contentText = batteryContent?.let { "$screenContent | $it" } ?: screenContent
 
         val appIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -207,6 +293,7 @@ class ScreenTrackerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        enqueueSample()
         ScreenStateHolder.setServiceRunning(true)
         if (ScreenStateHolder.isScreenOn.value) {
             startTicker()
@@ -221,6 +308,17 @@ class ScreenTrackerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopTicker()
+        samplingJob?.cancel()
+        samplingConsumer?.cancel()
+        monitorNotificationJob?.cancel()
+        sampleRequests.close()
+        (application as PhonePulseApp).applicationScope.launch {
+            try {
+                samplingConsumer?.join()
+                monitor.stop(monitoringOwner)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { Log.e("BatteryMonitor", "Failed to save monitor checkpoint", e) }
+        }
         try {
             unregisterReceiver(screenReceiver)
         } catch (e: Exception) {

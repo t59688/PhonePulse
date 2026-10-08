@@ -43,6 +43,12 @@ import com.aizeek.phonepulse.data.estimateAppBatteryUsage
 import com.aizeek.phonepulse.data.LiveBatteryInfo
 import com.aizeek.phonepulse.ui.components.BatteryLevelChart
 import com.aizeek.phonepulse.ui.components.BatteryStatsCard
+import com.aizeek.phonepulse.ui.components.BatteryMeasurementCard
+import com.aizeek.phonepulse.ui.components.BatteryHealthCard
+import com.aizeek.phonepulse.ui.components.BatteryMaintenanceCard
+import com.aizeek.phonepulse.ui.components.BatterySessionsCard
+import com.aizeek.phonepulse.battery.BatteryMonitorUiState
+import com.aizeek.phonepulse.battery.BatteryMonitorSettings
 import com.aizeek.phonepulse.ui.theme.TextPrimary
 import com.aizeek.phonepulse.ui.theme.TextSecondary
 import com.aizeek.phonepulse.ui.theme.NeonCyan
@@ -60,7 +66,11 @@ fun BatteryScreen(
     isLoading: Boolean = false,
     onRequestPermission: () -> Unit = {},
     onRefresh: () -> Unit = {},
-    loadTimeline: suspend (String) -> AppUsageTimeline? = { null }
+    loadTimeline: suspend (String) -> AppUsageTimeline? = { null },
+    monitorState: BatteryMonitorUiState = BatteryMonitorUiState(),
+    onSaveBatterySettings: (BatteryMonitorSettings) -> Unit = {},
+    onExcludeBatteryCycle: (Long, Boolean) -> Unit = { _, _ -> },
+    onMuteBatteryAlarm: () -> Unit = {}
 ) {
     var selectedPackage by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
@@ -84,6 +94,10 @@ fun BatteryScreen(
         }
         item { BatteryLevelChart(records = records) }
         item { BatteryStatsCard(batteryInfo = batteryInfo) }
+        item(key = "battery_measurement") { BatteryMeasurementCard(monitorState) }
+        item(key = "battery_health") { BatteryHealthCard(monitorState) }
+        item(key = "battery_maintenance") { BatteryMaintenanceCard(monitorState, onSaveBatterySettings, onMuteBatteryAlarm) }
+        item(key = "battery_sessions") { BatterySessionsCard(monitorState.cycles, onExcludeBatteryCycle) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically) {

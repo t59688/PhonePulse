@@ -58,8 +58,10 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Precision screen awake and sleep session duration tracking" />
+                android:value="User-visible screen session tracking and battery current, charge session and charge target monitoring" />
         </service>
+
+        <receiver android:name=".battery.BatteryAlarmMuteReceiver" android:exported="false" />
 
         <receiver
             android:name=".receiver.BootCompletedReceiver"

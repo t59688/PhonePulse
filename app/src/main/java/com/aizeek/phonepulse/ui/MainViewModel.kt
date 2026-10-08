@@ -30,12 +30,50 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import com.aizeek.phonepulse.update.UpdateRepository
+import com.aizeek.phonepulse.PhonePulseApp
+import com.aizeek.phonepulse.battery.BatteryMonitorSettings
+import com.aizeek.phonepulse.battery.BatteryChargeAlarm
+import kotlinx.coroutines.CancellationException
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val screenRepo = ScreenStateRepository(application)
     private val usageRepo = UsageStatsRepository(application)
     private val batteryRepo = BatteryRepository(application)
+    private val batteryMonitorRepository = (application as PhonePulseApp).batteryMonitor
+    val batteryMonitor = batteryMonitorRepository.state
+
+    fun saveBatterySettings(settings: BatteryMonitorSettings) = viewModelScope.launch {
+        try {
+            batteryMonitorRepository.saveSettings(settings)
+            if (!settings.chargeAlarmEnabled) BatteryChargeAlarm(getApplication()).cancel()
+            if (ScreenStateHolder.isServiceRunning.value) ScreenTrackerService.start(getApplication())
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) {
+            batteryMonitorRepository.reportError("电池设置保存失败，请重试", action = true)
+            android.util.Log.e("BatteryMonitor", "Failed to save settings", e)
+        }
+    }
+
+    fun excludeBatteryCycle(id: Long, excluded: Boolean) = viewModelScope.launch {
+        try { batteryMonitorRepository.setExcluded(id, excluded)
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) {
+            batteryMonitorRepository.reportError("会话修改失败，请重试", action = true)
+            android.util.Log.e("BatteryMonitor", "Failed to exclude cycle", e)
+        }
+    }
+
+    fun muteBatteryAlarm() = viewModelScope.launch {
+        try {
+            batteryMonitorRepository.muteAlarm()
+            BatteryChargeAlarm(getApplication()).cancel()
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) {
+            batteryMonitorRepository.reportError("提醒静音失败，请重试", action = true)
+            android.util.Log.e("BatteryMonitor", "Failed to mute alarm", e)
+        }
+    }
     private var usageLoadJob: Job? = null
     val updates = UpdateRepository(application)
 

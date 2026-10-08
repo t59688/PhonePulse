@@ -260,6 +260,7 @@ fun MainScreen(
                         )
                     }
                     ScreenTab.BATTERY -> {
+                        val batteryMonitor by viewModel.batteryMonitor.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         val todayBatteryRecords by viewModel.todayBatteryRecords.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         val liveBattery by viewModel.liveBattery.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
                         val todayAppUsageList by viewModel.todayAppUsageList.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
@@ -269,7 +270,11 @@ fun MainScreen(
                             isLoading = isBatteryAppUsageLoading,
                             onRequestPermission = { KeepAliveHelper.openUsageAccessSettings(context) },
                             onRefresh = { viewModel.loadAppUsageStats(forBattery = true) },
-                            loadTimeline = viewModel::loadAppUsageTimeline)
+                            loadTimeline = viewModel::loadAppUsageTimeline,
+                            monitorState = batteryMonitor,
+                            onSaveBatterySettings = { viewModel.saveBatterySettings(it) },
+                            onExcludeBatteryCycle = { id, excluded -> viewModel.excludeBatteryCycle(id, excluded) },
+                            onMuteBatteryAlarm = { viewModel.muteBatteryAlarm() })
                     }
                     ScreenTab.HISTORY -> {
                         val allSessions by viewModel.allSessions.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)

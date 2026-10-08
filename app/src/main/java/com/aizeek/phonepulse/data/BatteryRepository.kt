@@ -30,7 +30,9 @@ data class LiveBatteryInfo(
     val screenOffDrainPerHour: Float = 0f,
     val todayTotalDrainPct: Int = 0, // 全设备总耗电量 (前台+后台全部消耗)
     val totalScreenOnDrainPct: Int = 0, // 亮屏前台耗电
-    val totalScreenOffDrainPct: Int = 0 // 熄屏后台待机耗电
+    val totalScreenOffDrainPct: Int = 0, // 熄屏后台待机耗电
+    val screenOnRateKnown: Boolean = false,
+    val screenOffRateKnown: Boolean = false
 )
 
 class BatteryRepository(private val context: Context) {
@@ -52,13 +54,15 @@ class BatteryRepository(private val context: Context) {
             temperature = latest.temperature,
             voltageMv = latest.voltage
         )
-        val stats = computeAllDrainStats(records, snapshot)
+        val stats = computeAllDrainStats(records)
         snapshot.copy(
             screenOnDrainPerHour = stats.onRate,
             screenOffDrainPerHour = stats.offRate,
             todayTotalDrainPct = stats.totalDrain,
             totalScreenOnDrainPct = stats.onDrain,
-            totalScreenOffDrainPct = stats.offDrain
+            totalScreenOffDrainPct = stats.offDrain,
+            screenOnRateKnown = stats.onKnown,
+            screenOffRateKnown = stats.offKnown
         )
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
@@ -87,7 +91,8 @@ class BatteryRepository(private val context: Context) {
             BatteryManager.BATTERY_HEALTH_OVERHEAT -> "过热"
             BatteryManager.BATTERY_HEALTH_DEAD -> "损坏"
             BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "电压过高"
-            else -> "正常"
+            BatteryManager.BATTERY_HEALTH_COLD -> "低温"
+            else -> "未知"
         }
 
         val rawTemp = batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 250) ?: 250
@@ -153,20 +158,21 @@ class BatteryRepository(private val context: Context) {
         val offRate: Float,
         val totalDrain: Int,
         val onDrain: Int,
-        val offDrain: Int
+        val offDrain: Int,
+        val onKnown: Boolean = false,
+        val offKnown: Boolean = false
     )
 
     private fun computeAllDrainStats(
-        records: List<BatteryRecord>,
-        current: LiveBatteryInfo
+        records: List<BatteryRecord>
     ): DrainStatsResult {
         if (records.size < 2) {
             return DrainStatsResult(
-                onRate = 10.8f,
-                offRate = 0.8f,
-                totalDrain = (100 - current.percentage).coerceAtLeast(0),
-                onDrain = ((100 - current.percentage) * 0.75f).toInt(),
-                offDrain = ((100 - current.percentage) * 0.25f).toInt()
+                onRate = 0f,
+                offRate = 0f,
+                totalDrain = 0,
+                onDrain = 0,
+                offDrain = 0
             )
         }
 
@@ -183,7 +189,7 @@ class BatteryRepository(private val context: Context) {
             val deltaTime = next.timestamp - prev.timestamp
 
             // Count ALL battery discharge drops whenever battery decreased
-            if (!prev.isCharging && !next.isCharging && deltaLevel > 0 && deltaTime > 0) {
+            if (!prev.isCharging && !next.isCharging && deltaLevel >= 0 && deltaTime > 0) {
                 totalDrain += deltaLevel
                 if (prev.screenState == "SCREEN_ON") {
                     onDrain += deltaLevel
@@ -195,20 +201,17 @@ class BatteryRepository(private val context: Context) {
             }
         }
 
-        val onPerHour = if (onTimeMs > 60_000L) (onDrain.toFloat() / (onTimeMs / 3600_000f)) else 10.8f
-        val offPerHour = if (offTimeMs > 60_000L) (offDrain.toFloat() / (offTimeMs / 3600_000f)) else 0.8f
-
-        // Ensure totalDrain reflects real day-drop if records cover earlier points
-        val initialRecord = records.first()
-        val directDrop = (initialRecord.percentage - current.percentage).coerceAtLeast(0)
-        val finalTotalDrain = maxOf(totalDrain, directDrop)
+        val onPerHour = if (onTimeMs >= 60_000L) (onDrain.toFloat() / (onTimeMs / 3600_000f)) else 0f
+        val offPerHour = if (offTimeMs >= 60_000L) (offDrain.toFloat() / (offTimeMs / 3600_000f)) else 0f
 
         return DrainStatsResult(
-            onRate = onPerHour.coerceIn(3f, 35f),
-            offRate = offPerHour.coerceIn(0.1f, 5f),
-            totalDrain = finalTotalDrain,
+            onRate = onPerHour,
+            offRate = offPerHour,
+            totalDrain = totalDrain,
             onDrain = onDrain,
-            offDrain = offDrain
+            offDrain = offDrain,
+            onKnown = onTimeMs >= 60_000L,
+            offKnown = offTimeMs >= 60_000L
         )
     }
 
