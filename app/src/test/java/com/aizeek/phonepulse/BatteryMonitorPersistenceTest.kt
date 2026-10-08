@@ -28,7 +28,7 @@ class BatteryMonitorPersistenceTest {
             old.version = 1
         }
         val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4).build()
         try {
             assertNull(db.batteryDao().getLatestRecordSync())
             assertEquals(1, db.openHelper.readableDatabase.query("SELECT * FROM screen_sessions").use { it.count })
@@ -51,7 +51,7 @@ class BatteryMonitorPersistenceTest {
             old.version = 2
         }
         val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(AppDatabase.MIGRATION_2_3).build()
+            .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4).build()
         try {
             assertEquals(80, db.batteryDao().getLatestRecordSync()!!.percentage)
             assertEquals(1, db.openHelper.readableDatabase.query("SELECT * FROM screen_sessions").use { it.count })

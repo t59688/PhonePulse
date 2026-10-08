@@ -7,9 +7,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
+import android.os.SystemClock
+import kotlinx.coroutines.delay
 
 /** Shared by the service and UI; only the service feeds telemetry into the accumulator. */
-class BatteryMonitorRepository(private val database: AppDatabase, scope: CoroutineScope) {
+class BatteryMonitorRepository(private val database: AppDatabase, scope: CoroutineScope,
+    private val elapsedNow: () -> Long = SystemClock::elapsedRealtime) {
     private val dao = database.batteryMonitorDao()
     private val mutex = Mutex()
     private val analytics = BatteryAnalytics()
@@ -24,17 +27,26 @@ class BatteryMonitorRepository(private val database: AppDatabase, scope: Corouti
     private val operationError = MutableStateFlow<String?>(null)
     private data class Runtime(val sample: BatteryTelemetry? = null, val cycle: BatteryCycle? = null,
         val running: Boolean = false, val error: String? = null)
+    private val freshRuntime = combine(runtime, flow {
+        while (true) { emit(Unit); delay(15_000) }
+    }) { live, _ ->
+        // A runtime update can arrive between ticks; never compare it with an older tick.
+        val now = elapsedNow()
+        if (live.running && live.sample != null && !isBatterySampleFresh(live.sample, now))
+            live.copy(error = live.error ?: "最近采样已过期，等待系统更新") else live
+    }
 
     val state: StateFlow<BatteryMonitorUiState> = combine(dao.observeState(), dao.observeCycles(),
-        dao.observeIntervals(), runtime, operationError) { persisted, cycles, intervals, live, actionError ->
+        dao.observeIntervals(), freshRuntime, operationError) { persisted, cycles, intervals, live, actionError ->
         val settings = persisted?.settings ?: BatteryMonitorSettings()
         val sample = live.sample
         val current = sample?.takeIf { live.running && live.error == null }?.currentUa?.times(settings.currentScale)?.times(settings.cellFactor)
             ?.times(if (settings.invertCurrent) -1 else 1)?.takeIf { it.isFinite() && kotlin.math.abs(it) <= 20_000_000 }
         BatteryMonitorUiState(settings = settings, currentUa = current,
-            chargeCounterUah = sample?.chargeCounterUah?.times(settings.cellFactor),
+            chargeCounterUah = sample?.takeIf { live.running && live.error == null }
+                ?.chargeCounterUah?.times(settings.cellFactor),
             lastSampleTime = sample?.timestamp, activeCycle = live.cycle ?: cycles.firstOrNull { it.endTime == null },
-            cycles = cycles.filter { it.endTime != null },
+            cycles = cycles.filter { it.endTime != null }.take(500),
             health = BatteryEstimates.health(cycles, settings),
             estimates = if (live.running && live.error == null) BatteryEstimates.estimate(sample, live.cycle, cycles, intervals, settings)
                 else BatteryTimeEstimates(), error = actionError ?: live.error, isRunning = live.running)

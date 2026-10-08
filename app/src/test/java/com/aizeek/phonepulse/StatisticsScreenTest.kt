@@ -70,9 +70,10 @@ class StatisticsScreenTest {
         compose.onNodeWithTag("app_battery_card_example.app").performClick()
         compose.onNodeWithTag("app_detail_screen").assertIsDisplayed()
         compose.onNodeWithText("前台使用时长").assertIsDisplayed()
-        compose.onNodeWithTag("app_detail_screen").performScrollToNode(hasText("今日估算耗电"))
-        compose.onNodeWithText("今日估算耗电").assertIsDisplayed()
-        compose.onNodeWithText("待采集").assertIsDisplayed()
+        compose.onNodeWithTag("app_detail_screen").performScrollToNode(hasText("应用耗电数据"))
+        compose.onNodeWithText("应用耗电数据").assertIsDisplayed()
+        compose.onNodeWithText("未提供").assertIsDisplayed()
+        compose.onNodeWithText("今日估算耗电").assertDoesNotExist()
         compose.onNodeWithTag("app_detail_back").performClick()
         compose.onNodeWithTag("app_detail_screen").assertDoesNotExist()
     }

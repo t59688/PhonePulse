@@ -26,53 +26,78 @@ object BatteryEstimates {
                 sample.elapsedMs - active.lastElapsedMs !in 0..120_000 ||
                 active.calibrationRevision != settings.calibrationRevision)) return BatteryTimeEstimates()
         val known = (cycles + listOfNotNull(active)).associateBy { it.id }
-        val usable = intervals.filter { interval ->
+        val eligible = intervals.filter { interval ->
             val cycle = known[interval.cycleId]
             (cycle == null && known.isEmpty() || cycle != null && !cycle.excluded &&
                 !cycle.socDiscontinuity && cycle.calibrationRevision == settings.calibrationRevision &&
                 cycle.rejectionReason !in setOf("REBOOT", "INCOMPLETE_RESTORE", "CALIBRATION_CHANGED")) &&
                 interval.startPct in 0..100 && interval.endPct in 0..100 &&
                 interval.endTime >= interval.startTime && interval.endTime <= sample.timestamp &&
-                sample.timestamp - interval.endTime <= 30L * 24 * 3_600_000 &&
-                interval.missingMs >= 0 && (interval.source == "SOC_ONLY" && interval.measuredMs == 0L &&
-                    interval.missingMs > 0 && interval.deepSleepMs == 0L ||
-                    interval.measuredMs > 0 && interval.missingMs.toDouble() / (interval.measuredMs + interval.missingMs) <= 0.1)
+                sample.timestamp - interval.endTime <= HISTORY_WINDOW_MS
         }
+        val usable = eligible.filter(::hasCoverage)
         // Only measured capacity supplies the mAh/% conversion; design capacity is not
         // a substitute for historical sensor data or a real accepted health session.
         val capacity = health(cycles, settings).capacityMah
         if (sample.plugged) {
             if (active == null || !active.charging || active.socDiscontinuity) return BatteryTimeEstimates()
+            // Plug presence defines a session; Android's status determines whether a
+            // countdown can currently run. An already reached target needs no forecast.
+            if (sample.status != STATUS_CHARGING) return BatteryTimeEstimates(
+                toTargetMs = 0L.takeIf { sample.percentage >= settings.chargeTargetPct.coerceIn(1, 100) },
+                toFullMs = 0L.takeIf { sample.percentage == 100 })
             val duration = active.measuredMs + active.missingMs
             val points = active.endPct - active.startPct
             val observedDuration = usable.filter { it.cycleId == active.id && it.charging }
                 .sumOf { it.measuredMs + it.missingMs }
             val rate = if (duration >= MIN_DURATION && points >= MIN_POINTS &&
+                active.plugType == sample.plugType &&
                 (active.missingMs.toDouble() / duration <= 0.1 || observedDuration.toDouble() / duration >= 0.9) &&
                 active.rejectionReason != "INCOMPLETE_RESTORE")
                 points.toDouble() / duration else null
             val chargeIntervals = usable.filter { it.charging && it.plugType == sample.plugType && it.endPct >= it.startPct }
             val bins = (0..9).associateWith { bin -> binRate(chargeIntervals, bin * 10, (bin + 1) * 10) }
-            val mahBins = if (capacity != null) (0..9).associateWith { bin ->
-                binMahRate(chargeIntervals, bin * 10, (bin + 1) * 10, capacity)
-            } else emptyMap()
+            var usedHistory = false
+            var usedSession = false
             fun time(target: Int): Long? {
                 if (target <= sample.percentage) return 0L
                 var total = 0.0
+                var history = false
+                var session = false
                 for (pct in sample.percentage until target) {
-                    val speed = mahBins[pct / 10] ?: bins[pct / 10] ?: rate ?: return null
+                    // SOC timing captures taper and the local mAh/% relationship.
+                    // Full-cycle capacity cannot establish a linear local conversion.
+                    val speed = bins[pct / 10]?.also { history = true }
+                        ?: rate?.also { session = true } ?: return null
                     total += 1 / speed
                 }
-                return bounded(total)
+                return bounded(total)?.also {
+                    usedHistory = usedHistory || history
+                    usedSession = usedSession || session
+                }
             }
-            return BatteryTimeEstimates(toTargetMs = time(settings.chargeTargetPct.coerceIn(1, 100)),
-                toFullMs = time(100), source = if (mahBins.values.any { it != null }) "MAH_HISTORY"
-                    else if (bins.values.any { it != null }) "SOC_HISTORY" else if (rate != null) "SESSION" else null)
+            val target = time(settings.chargeTargetPct.coerceIn(1, 100))
+            val full = time(100)
+            return BatteryTimeEstimates(toTargetMs = target, toFullMs = full, source = when {
+                usedHistory && usedSession -> "SOC_HISTORY_SESSION"
+                usedHistory -> "SOC_HISTORY"
+                usedSession -> "SESSION"
+                else -> null
+            })
         }
         val discharge = usable.filter { !it.charging && it.endPct <= it.startPct }
         var usedMah = false
         fun remaining(screen: Boolean?): Long? {
-            val selected = discharge.filter { screen == null || it.screenOn == screen }
+            // Do not treat wake-only CURRENT sampling as full standby coverage.
+            // Remove the affected cycle for this screen bucket; independently covered
+            // screen-on observations and other complete cycles remain usable.
+            val uncoveredSleepCycles = eligible.filter {
+                !it.charging && (screen == null || it.screenOn == screen) &&
+                    it.deepSleepMs > 0 && !hasCoverage(it)
+            }.map { it.cycleId }.toSet()
+            val selected = discharge.filter {
+                (screen == null || it.screenOn == screen) && it.cycleId !in uncoveredSleepCycles
+            }
             val mahRate = capacity?.let { observedMahRate(selected, it) }
             if (mahRate != null) {
                 val prediction = bounded(sample.percentage / mahRate)
@@ -90,6 +115,12 @@ object BatteryEstimates {
                 .takeIf { on != null || off != null || mixed != null })
     }
 
+    private fun hasCoverage(interval: BatteryInterval): Boolean =
+        interval.missingMs >= 0 && (interval.source == "SOC_ONLY" && interval.measuredMs == 0L &&
+            interval.missingMs > 0 && interval.deepSleepMs == 0L ||
+            interval.measuredMs > 0 && interval.missingMs.toDouble() /
+                (interval.measuredMs + interval.missingMs) <= 0.1)
+
     // Flat SOC intervals belong in the denominator; dropping them biases every rate upward.
     private fun observedRate(intervals: List<BatteryInterval>): Double? {
         val duration = intervals.sumOf { it.measuredMs + it.missingMs }
@@ -104,21 +135,6 @@ object BatteryEstimates {
         val drain = -measured.sumOf { it.netMah }
         return if (duration >= MIN_DURATION && drain >= capacity * MIN_POINTS / 100)
             drain / capacity * 100 / duration else null
-    }
-
-    private fun binMahRate(intervals: List<BatteryInterval>, low: Int, high: Int, capacity: Double): Double? {
-        var duration = 0.0
-        var charge = 0.0
-        intervals.filter { it.source in MEASURED_SOURCES && it.netMah.isFinite() }.forEach {
-            val delta = it.endPct - it.startPct
-            val overlap = (minOf(it.endPct, high) - maxOf(it.startPct, low)).coerceAtLeast(0)
-            val fraction = if (delta > 0) overlap.toDouble() / delta
-                else if (it.startPct in low until high) 1.0 else 0.0
-            duration += (it.measuredMs + it.missingMs) * fraction
-            charge += it.netMah * fraction
-        }
-        return if (duration >= MIN_DURATION && charge >= capacity * MIN_POINTS / 100)
-            charge / capacity * 100 / duration else null
     }
 
     private fun binRate(intervals: List<BatteryInterval>, low: Int, high: Int): Double? {
@@ -138,8 +154,11 @@ object BatteryEstimates {
 
     private fun bounded(ms: Double): Long? = ms.takeIf { it.isFinite() && it >= 0 && it <= MAX_PREDICTION }?.toLong()
 
+    // Evidence and retention limits, not default battery measurements or speeds.
     private const val MIN_DURATION = 600_000L
     private const val MIN_POINTS = 2
+    private const val HISTORY_WINDOW_MS = 30L * 24 * 3_600_000
     private const val MAX_PREDICTION = 30.0 * 24 * 3_600_000
+    private const val STATUS_CHARGING = 2
     private val MEASURED_SOURCES = setOf("CURRENT", "COUNTER")
 }

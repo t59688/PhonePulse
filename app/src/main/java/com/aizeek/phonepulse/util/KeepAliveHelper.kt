@@ -1,5 +1,6 @@
 package com.aizeek.phonepulse.util
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -7,6 +8,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import java.util.Locale
 
 object KeepAliveHelper {
 
@@ -91,5 +93,71 @@ object KeepAliveHelper {
         } else {
             true
         }
+    }
+
+    fun openAutoStartSettings(context: Context) {
+        val packageName = context.packageName
+        val manufacturer = Build.MANUFACTURER.lowercase(Locale.getDefault())
+
+        val candidates = mutableListOf<Intent>()
+
+        // 1. Xiaomi / Redmi (MIUI / HyperOS)
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
+            candidates.add(Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")))
+            candidates.add(Intent("miui.intent.action.OP_AUTO_START").addCategory(Intent.CATEGORY_DEFAULT))
+        }
+
+        // 2. Huawei / Honor (EMUI / HarmonyOS / MagicOS)
+        if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
+            candidates.add(Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.bootstart.BootStartActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity")))
+        }
+
+        // 3. OPPO / OnePlus / Realme (ColorOS)
+        if (manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme")) {
+            candidates.add(Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startupfake.StartupFakeActivity")))
+        }
+
+        // 4. vivo / iQOO (OriginOS / FuntouchOS)
+        if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
+            candidates.add(Intent().setComponent(ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")))
+            candidates.add(Intent().setComponent(ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")))
+        }
+
+        // 5. Meizu
+        if (manufacturer.contains("meizu")) {
+            candidates.add(Intent().setComponent(ComponentName("com.meizu.safe", "com.meizu.safe.security.SHOW_APPSEC")).putExtra("packageName", packageName))
+        }
+
+        // 6. Samsung
+        if (manufacturer.contains("samsung")) {
+            candidates.add(Intent().setComponent(ComponentName("com.samsung.android.sm", "com.samsung.android.sm.ui.battery.BatteryActivity")))
+            candidates.add(Intent().setComponent(ComponentName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")))
+        }
+
+        // Universal OEM fallback candidates
+        candidates.add(Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")))
+        candidates.add(Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")))
+        candidates.add(Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")))
+        candidates.add(Intent().setComponent(ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")))
+
+        for (intent in candidates) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    return
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        // Fallback to app details settings
+        openAppDetailsSettings(context)
     }
 }

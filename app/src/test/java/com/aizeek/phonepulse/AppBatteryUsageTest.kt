@@ -17,18 +17,18 @@ class AppBatteryUsageTest {
             plugType = "NONE", health = "GOOD", temperature = 25f, voltage = 4000,
             screenState = screen, dateKey = "2026-10-07")
 
-    @Test fun `foreground estimates share recorded discharge without assigning standby to apps`() {
+    @Test fun `foreground time cannot attribute device discharge to an app`() {
         val records = listOf(sample(0, 100), sample(60_000, 96),
             sample(120_000, 96, screen = "SCREEN_OFF"), sample(180_000, 90))
         val estimates = estimateAppBatteryUsage(apps, records)
-        assertEquals(3f, estimates[0].estimatedDrainPct!!, 0.001f)
-        assertEquals(1f, estimates[1].estimatedDrainPct!!, 0.001f)
+        assertNull(estimates[0].estimatedDrainPct)
+        assertNull(estimates[1].estimatedDrainPct)
     }
 
-    @Test fun `flat battery produces zero rather than an invented minimum`() {
+    @Test fun `flat device SOC cannot prove zero per app energy`() {
         val estimates = estimateAppBatteryUsage(apps, listOf(sample(0, 100), sample(60_000, 100)))
-        assertEquals(0f, estimates[0].estimatedDrainPct!!, 0f)
-        assertEquals(0f, estimates[1].estimatedDrainPct!!, 0f)
+        assertNull(estimates[0].estimatedDrainPct)
+        assertNull(estimates[1].estimatedDrainPct)
     }
 
     @Test fun `missing samples and zero usage have no estimate`() {

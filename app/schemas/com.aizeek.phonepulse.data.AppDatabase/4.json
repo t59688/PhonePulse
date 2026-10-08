@@ -1,0 +1,533 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "85199a0ff424721def522904367c257b",
+    "entities": [
+      {
+        "tableName": "screen_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `dateKey` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "startTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "endTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateKey",
+            "columnName": "dateKey",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "battery_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `level` INTEGER NOT NULL, `scale` INTEGER NOT NULL, `percentage` INTEGER NOT NULL, `isCharging` INTEGER NOT NULL, `plugType` TEXT NOT NULL, `health` TEXT NOT NULL, `temperature` REAL, `voltage` INTEGER, `screenState` TEXT NOT NULL, `dateKey` TEXT NOT NULL, `plugged` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scale",
+            "columnName": "scale",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "percentage",
+            "columnName": "percentage",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCharging",
+            "columnName": "isCharging",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plugType",
+            "columnName": "plugType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "health",
+            "columnName": "health",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temperature",
+            "columnName": "temperature",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "voltage",
+            "columnName": "voltage",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "screenState",
+            "columnName": "screenState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateKey",
+            "columnName": "dateKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plugged",
+            "columnName": "plugged",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "battery_cycles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `charging` INTEGER NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER, `lastTime` INTEGER NOT NULL, `lastElapsedMs` INTEGER NOT NULL, `startPct` INTEGER NOT NULL, `endPct` INTEGER NOT NULL, `netMah` REAL NOT NULL, `screenOnMah` REAL NOT NULL, `screenOffMah` REAL NOT NULL, `measuredMs` INTEGER NOT NULL, `screenOnMeasuredMs` INTEGER NOT NULL, `screenOffMeasuredMs` INTEGER NOT NULL, `missingMs` INTEGER NOT NULL, `deepSleepMs` INTEGER NOT NULL, `counterMah` REAL NOT NULL, `to100Mah` REAL, `fullChargeMah` REAL, `lowCurrentSinceElapsedMs` INTEGER, `highSocMs` INTEGER NOT NULL, `maxTemperatureC` REAL, `estimatedCapacityMah` REAL, `rejectionReason` TEXT, `excluded` INTEGER NOT NULL, `calibrationRevision` INTEGER NOT NULL, `completionReason` TEXT, `alarmNotified` INTEGER NOT NULL, `alarmMuted` INTEGER NOT NULL, `socDiscontinuity` INTEGER NOT NULL, `plugType` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charging",
+            "columnName": "charging",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "startTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "endTime",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastTime",
+            "columnName": "lastTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastElapsedMs",
+            "columnName": "lastElapsedMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startPct",
+            "columnName": "startPct",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endPct",
+            "columnName": "endPct",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "netMah",
+            "columnName": "netMah",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenOnMah",
+            "columnName": "screenOnMah",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenOffMah",
+            "columnName": "screenOffMah",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "measuredMs",
+            "columnName": "measuredMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenOnMeasuredMs",
+            "columnName": "screenOnMeasuredMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenOffMeasuredMs",
+            "columnName": "screenOffMeasuredMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missingMs",
+            "columnName": "missingMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deepSleepMs",
+            "columnName": "deepSleepMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "counterMah",
+            "columnName": "counterMah",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "to100Mah",
+            "columnName": "to100Mah",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "fullChargeMah",
+            "columnName": "fullChargeMah",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lowCurrentSinceElapsedMs",
+            "columnName": "lowCurrentSinceElapsedMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "highSocMs",
+            "columnName": "highSocMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxTemperatureC",
+            "columnName": "maxTemperatureC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "estimatedCapacityMah",
+            "columnName": "estimatedCapacityMah",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rejectionReason",
+            "columnName": "rejectionReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "excluded",
+            "columnName": "excluded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "calibrationRevision",
+            "columnName": "calibrationRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completionReason",
+            "columnName": "completionReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "alarmNotified",
+            "columnName": "alarmNotified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alarmMuted",
+            "columnName": "alarmMuted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "socDiscontinuity",
+            "columnName": "socDiscontinuity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plugType",
+            "columnName": "plugType",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_battery_cycles_startTime",
+            "unique": false,
+            "columnNames": [
+              "startTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_battery_cycles_startTime` ON `${TABLE_NAME}` (`startTime`)"
+          },
+          {
+            "name": "index_battery_cycles_endTime",
+            "unique": false,
+            "columnNames": [
+              "endTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_battery_cycles_endTime` ON `${TABLE_NAME}` (`endTime`)"
+          }
+        ]
+      },
+      {
+        "tableName": "battery_intervals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `cycleId` INTEGER NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `screenOn` INTEGER NOT NULL, `charging` INTEGER NOT NULL, `startPct` INTEGER NOT NULL, `endPct` INTEGER NOT NULL, `netMah` REAL NOT NULL, `measuredMs` INTEGER NOT NULL, `missingMs` INTEGER NOT NULL, `deepSleepMs` INTEGER NOT NULL, `source` TEXT NOT NULL, `plugType` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cycleId",
+            "columnName": "cycleId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "startTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "endTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenOn",
+            "columnName": "screenOn",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charging",
+            "columnName": "charging",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startPct",
+            "columnName": "startPct",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endPct",
+            "columnName": "endPct",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "netMah",
+            "columnName": "netMah",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "measuredMs",
+            "columnName": "measuredMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missingMs",
+            "columnName": "missingMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deepSleepMs",
+            "columnName": "deepSleepMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plugType",
+            "columnName": "plugType",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_battery_intervals_endTime",
+            "unique": false,
+            "columnNames": [
+              "endTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_battery_intervals_endTime` ON `${TABLE_NAME}` (`endTime`)"
+          },
+          {
+            "name": "index_battery_intervals_cycleId",
+            "unique": false,
+            "columnNames": [
+              "cycleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_battery_intervals_cycleId` ON `${TABLE_NAME}` (`cycleId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "battery_monitor_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `designCapacityMah` REAL, `invertCurrent` INTEGER NOT NULL, `currentScale` REAL NOT NULL, `cellFactor` INTEGER NOT NULL, `calibrationRevision` INTEGER NOT NULL, `chargeAlarmEnabled` INTEGER NOT NULL, `chargeTargetPct` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settings.designCapacityMah",
+            "columnName": "designCapacityMah",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "settings.invertCurrent",
+            "columnName": "invertCurrent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settings.currentScale",
+            "columnName": "currentScale",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settings.cellFactor",
+            "columnName": "cellFactor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settings.calibrationRevision",
+            "columnName": "calibrationRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settings.chargeAlarmEnabled",
+            "columnName": "chargeAlarmEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settings.chargeTargetPct",
+            "columnName": "chargeTargetPct",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '85199a0ff424721def522904367c257b')"
+    ]
+  }
+}

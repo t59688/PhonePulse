@@ -103,6 +103,10 @@ class ScreenTrackerService : Service() {
 
         ScreenStateHolder.setServiceRunning(true)
 
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val isScreenCurrentlyOn = powerManager?.isInteractive ?: ScreenStateHolder.isScreenOn.value
+        ScreenStateHolder.syncScreenState(isScreenCurrentlyOn)
+
         val initialNotification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
@@ -333,11 +337,16 @@ class ScreenTrackerService : Service() {
         const val NOTIFICATION_ID = 1001
 
         fun start(context: Context) {
-            val intent = Intent(context, ScreenTrackerService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            val appContext = context.applicationContext ?: context
+            val intent = Intent(appContext, ScreenTrackerService::class.java)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appContext.startForegroundService(intent)
+                } else {
+                    appContext.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e("ScreenTrackerService", "Failed to start ScreenTrackerService", e)
             }
         }
 

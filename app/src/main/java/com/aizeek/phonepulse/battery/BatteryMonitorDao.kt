@@ -23,13 +23,13 @@ interface BatteryMonitorDao {
     suspend fun getActiveCycle(): BatteryCycle?
     @Query("SELECT * FROM battery_cycles WHERE id = :id")
     suspend fun getCycle(id: Long): BatteryCycle?
-    @Query("SELECT * FROM battery_cycles ORDER BY startTime DESC LIMIT 500")
+    @Query("SELECT * FROM battery_cycles ORDER BY startTime DESC")
     fun observeCycles(): Flow<List<BatteryCycle>>
     @Query("UPDATE battery_cycles SET excluded = :excluded WHERE id = :id AND endTime IS NOT NULL")
     suspend fun setExcluded(id: Long, excluded: Boolean)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveInterval(interval: BatteryInterval): Long
-    @Query("SELECT * FROM battery_intervals ORDER BY endTime DESC LIMIT 5000")
+    @Query("SELECT * FROM battery_intervals ORDER BY endTime DESC")
     fun observeIntervals(): Flow<List<BatteryInterval>>
     @Query("DELETE FROM battery_intervals WHERE endTime < :before")
     suspend fun deleteOldIntervals(before: Long)

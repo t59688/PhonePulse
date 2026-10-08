@@ -10,6 +10,6 @@ data class AppUsageInfo(
     val launchCount: Int = 0,
     val iconBitmap: ImageBitmap? = null,
     val percentageOfTotal: Float = 0f,
-    val estimatedBatteryDrainPct: Float = 0f,
-    val estimatedMah: Int = 0
+    val estimatedBatteryDrainPct: Float? = null,
+    val estimatedMah: Int? = null
 )

@@ -7,10 +7,13 @@ import kotlin.math.max
 class BatteryAnalytics {
     private var active: BatteryCycle? = null
     private var previous: BatteryTelemetry? = null
+    private var counterAnchor: BatteryTelemetry? = null
+    private var counterAnchorNetMah = 0.0
 
     fun restore(cycle: BatteryCycle?) {
         active = cycle?.takeIf { it.endTime == null }
         previous = null
+        counterAnchor = null
     }
 
     fun replaceActive(cycle: BatteryCycle) {
@@ -25,6 +28,7 @@ class BatteryAnalytics {
             sample.elapsedMs < old.lastElapsedMs -> "REBOOT"
             old.calibrationRevision != settings.calibrationRevision -> "CALIBRATION_CHANGED"
             old.charging != sample.plugged -> "POWER_CHANGE"
+            old.plugType != sample.plugType -> "POWER_SOURCE_CHANGE"
             else -> null
         }
         if (reason == "REBOOT" || reason == "CALIBRATION_CHANGED") {
@@ -37,14 +41,26 @@ class BatteryAnalytics {
         val awake = prior?.let { (sample.uptimeMs - it.uptimeMs).coerceIn(0, dt) } ?: 0L
         // Separate clock reads can straddle a millisecond boundary without actual suspend.
         val sleep = if (prior != null && dt - awake > 20) dt - awake else 0L
-        val counter = prior?.let { counterDelta(it, sample, settings, dt, sleep) }
         val a = prior?.let { calibratedCurrent(it, settings) }
         // The power-event sample can already report the new charger's current.
-        val b = if (reason == "POWER_CHANGE") a else calibratedCurrent(sample, settings)
+        val b = if (reason == "POWER_CHANGE" || reason == "POWER_SOURCE_CHANGE") a else calibratedCurrent(sample, settings)
         val currentValid = prior != null && dt in 1..60_000 && sleep == 0L && a != null && b != null
+        val integral = if (currentValid) (a!! + b!!) / 2 * dt / 3_600_000_000.0 else null
+        val anchor = counterAnchor
+        val counter = anchor?.let {
+            val span = sample.elapsedMs - it.elapsedMs
+            val awakeSpan = (sample.uptimeMs - it.uptimeMs).coerceIn(0, span.coerceAtLeast(0))
+            val sleepSpan = if (span - awakeSpan > 20) span - awakeSpan else 0L
+            counterDelta(it, sample, settings, span, sleepSpan)?.let { cumulative ->
+                // A coarse or delayed counter includes charge already integrated while awake.
+                // Only its unrecorded remainder may belong to this interval.
+                val remainder = cumulative - (old.netMah - counterAnchorNetMah)
+                remainder.takeIf { validCounterRemainder(settings, dt, cumulative, it, a, b) }
+            }
+        }?.takeIf { !currentValid || (integral == 0.0 && it == 0.0) }
         val socOnly = prior != null && dt in 1..60_000 && sleep == 0L && !currentValid && counter == null
         val measured = if (counter != null || currentValid) dt else 0L
-        val mah = counter ?: if (currentValid) (a!! + b!!) / 2 * dt / 3_600_000_000.0 else 0.0
+        val mah = counter ?: integral ?: 0.0
         val pctDelta = sample.percentage - old.endPct
         val discontinuity = old.socDiscontinuity ||
             (old.charging && pctDelta < 0) || (!old.charging && pctDelta > 0) ||
@@ -69,9 +85,14 @@ class BatteryAnalytics {
             screenOnMah = old.screenOnMah + if (screenOn) mah else 0.0,
             screenOffMah = old.screenOffMah + if (!screenOn) mah else 0.0,
             measuredMs = old.measuredMs + measured, missingMs = old.missingMs + dt - measured,
+            screenOnMeasuredMs = old.screenOnMeasuredMs + if (screenOn) measured else 0L,
+            screenOffMeasuredMs = old.screenOffMeasuredMs + if (!screenOn) measured else 0L,
             deepSleepMs = old.deepSleepMs + sleep,
             counterMah = old.counterMah + (counter ?: 0.0),
-            to100Mah = old.to100Mah ?: net.takeIf { old.charging && sample.percentage == 100 },
+            to100Mah = old.to100Mah ?: net.takeIf {
+                old.charging && old.startPct < 100 && old.endPct < 100 && sample.percentage == 100 &&
+                    dt > 0 && measured == dt
+            },
             fullChargeMah = fullCharge, lowCurrentSinceElapsedMs = lowCurrentSince,
             highSocMs = old.highSocMs + if (old.endPct >= 80) dt else 0L,
             maxTemperatureC = listOfNotNull(old.maxTemperatureC, sample.temperatureC?.takeIf { it.isFinite() }).maxOrNull(),
@@ -94,6 +115,12 @@ class BatteryAnalytics {
         }
         active = updated
         previous = sample
+        if ((dt > 0 && measured == 0L && anchor != null) || sample.chargeCounterUah?.let { it > 0 } != true) {
+            counterAnchor = null
+        } else if (anchor == null || sample.chargeCounterUah != anchor.chargeCounterUah) {
+            counterAnchor = sample
+            counterAnchorNetMah = net
+        }
         return BatteryAnalyticsUpdate(updated, interval = interval)
     }
 
@@ -101,7 +128,6 @@ class BatteryAnalytics {
         val cycle = BatteryCycle(charging = sample.plugged, startTime = sample.timestamp,
             lastTime = sample.timestamp, lastElapsedMs = sample.elapsedMs,
             startPct = sample.percentage, endPct = sample.percentage,
-            to100Mah = 0.0.takeIf { sample.plugged && sample.percentage == 100 },
             lowCurrentSinceElapsedMs = sample.elapsedMs.takeIf {
                 sample.plugged && sample.percentage == 100 && sample.status == 5 &&
                     calibratedCurrent(sample, settings)?.let { abs(it) <= 100_000 } == true
@@ -110,6 +136,8 @@ class BatteryAnalytics {
             calibrationRevision = settings.calibrationRevision, plugType = sample.plugType)
         active = cycle
         previous = sample
+        counterAnchor = sample.takeIf { it.chargeCounterUah?.let { value -> value > 0 } == true }
+        counterAnchorNetMah = 0.0
         return BatteryAnalyticsUpdate(cycle)
     }
 
@@ -144,6 +172,17 @@ class BatteryAnalytics {
     private fun calibratedCurrent(sample: BatteryTelemetry, settings: BatteryMonitorSettings): Double? =
         sample.currentUa?.let { it * settings.currentScale * settings.cellFactor * if (settings.invertCurrent) -1 else 1 }
             ?.takeIf { it.isFinite() && abs(it) <= 20_000_000 }
+
+    private fun validCounterRemainder(settings: BatteryMonitorSettings, dt: Long,
+        cumulative: Double, remainder: Double, firstCurrent: Double?, lastCurrent: Double?): Boolean {
+        if (dt <= 0 || !remainder.isFinite()) return false
+        val maxMa = settings.designCapacityMah?.takeIf { it.isFinite() && it > 0 }
+            ?.let { (it * 5).coerceIn(5000.0, 20000.0) } ?: 20000.0
+        if (abs(remainder) > maxMa * dt / 3_600_000 + 0.05) return false
+        // A partial counter refresh must not reverse charge merely to undo earlier integration.
+        return cumulative == 0.0 || remainder == 0.0 || cumulative * remainder >= 0 ||
+            (firstCurrent != null && lastCurrent != null && firstCurrent * remainder > 0 && lastCurrent * remainder > 0)
+    }
 
     private fun counterDelta(a: BatteryTelemetry, b: BatteryTelemetry, settings: BatteryMonitorSettings,
         dt: Long, sleep: Long): Double? {

@@ -43,6 +43,8 @@ data class BatteryCycle(
     val screenOnMah: Double = 0.0,
     val screenOffMah: Double = 0.0,
     val measuredMs: Long = 0,
+    val screenOnMeasuredMs: Long = 0,
+    val screenOffMeasuredMs: Long = 0,
     val missingMs: Long = 0,
     val deepSleepMs: Long = 0,
     val counterMah: Double = 0.0,

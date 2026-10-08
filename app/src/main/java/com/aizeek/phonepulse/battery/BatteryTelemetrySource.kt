@@ -23,14 +23,15 @@ class AndroidBatteryTelemetrySource(context: Context) : BatteryTelemetrySource {
             ?: throw IllegalStateException("系统暂未提供电池状态")
         val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
         val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-        check(level >= 0 && scale > 0) { "系统电量读数无效" }
+        check(scale > 0 && level in 0..scale) { "系统电量读数无效" }
         val raw = property(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
         // Keep the platform units here; the accumulator applies calibration exactly once.
         val current = raw?.toDouble()
-        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)
+        check(plugged >= 0) { "系统暂未提供插电状态" }
         return BatteryTelemetry(
             timestamp = System.currentTimeMillis(), elapsedMs = SystemClock.elapsedRealtime(),
-            uptimeMs = SystemClock.uptimeMillis(), percentage = (level * 100.0 / scale).toInt().coerceIn(0, 100),
+            uptimeMs = SystemClock.uptimeMillis(), percentage = (level * 100.0 / scale).toInt(),
             plugged = plugged != 0, status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
             screenOn = screenOn, currentUa = current,
             chargeCounterUah = property(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
@@ -57,6 +58,10 @@ class AndroidBatteryTelemetrySource(context: Context) : BatteryTelemetrySource {
 class RecordedBatteryTelemetrySource(private val sample: BatteryTelemetry) : BatteryTelemetrySource {
     override fun read(screenOn: Boolean, settings: BatteryMonitorSettings) = sample
 }
+
+/** Freshness is checked against the current monotonic clock, not another copy of the same sample. */
+fun isBatterySampleFresh(sample: BatteryTelemetry, nowElapsedMs: Long): Boolean =
+    nowElapsedMs - sample.elapsedMs in 0..120_000L
 
 fun validateBatterySettings(settings: BatteryMonitorSettings): String? = when {
     settings.designCapacityMah != null && (!settings.designCapacityMah.isFinite() ||

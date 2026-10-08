@@ -72,6 +72,60 @@ class BatteryEstimatesTest {
             listOf(measured.copy(source = "MISSING", measuredMs = 0, missingMs = hour)), settings).screenOnRemainingMs)
     }
 
+    @Test fun `charging target follows observed SOC time instead of linear full capacity conversion`() {
+        val active = cycle(1).copy(endTime = null, startPct = 60, endPct = 80,
+            lastTime = hour, lastElapsedMs = hour, plugType = "USB")
+        val sample = BatteryTelemetry(hour, hour, hour, 80, true, 2, true, 600_000.0, plugType = "USB")
+        val observed = interval(0, hour, 80, 90, true).copy(charging = true,
+            netMah = 600.0, plugType = "USB")
+        val estimate = BatteryEstimates.estimate(sample, active, listOf(cycle(99)),
+            listOf(observed), settings.copy(chargeTargetPct = 90))
+        assertEquals(hour, estimate.toTargetMs)
+        assertEquals("SOC_HISTORY_SESSION", estimate.source)
+    }
+
+    @Test fun `plugged paused or unknown charging status does not show a countdown`() {
+        val active = cycle(1).copy(endTime = null, startPct = 20, endPct = 40,
+            lastTime = hour, lastElapsedMs = hour)
+        val sample = BatteryTelemetry(hour, hour, hour, 40, true, 4, true, 0.0)
+        for (status in listOf(1, 3, 4, 5)) {
+            val estimate = BatteryEstimates.estimate(sample.copy(status = status), active,
+                emptyList(), emptyList(), settings)
+            assertNull(estimate.toTargetMs)
+            assertNull(estimate.toFullMs)
+            assertNull(estimate.source)
+        }
+    }
+
+    @Test fun `charging history outside requested range does not label session forecast as history`() {
+        val active = cycle(1).copy(endTime = null, startPct = 60, endPct = 80,
+            lastTime = hour, lastElapsedMs = hour, plugType = "USB")
+        val sample = BatteryTelemetry(hour, hour, hour, 80, true, 2, true, null, plugType = "USB")
+        val earlier = interval(0, hour, 20, 30, true).copy(charging = true, plugType = "USB")
+        val estimate = BatteryEstimates.estimate(sample, active, emptyList(), listOf(earlier), settings)
+        assertEquals(hour, estimate.toFullMs)
+        assertEquals("SESSION", estimate.source)
+    }
+
+    @Test fun `unmeasured sleep does not turn awake discharge into standby or mixed forecast`() {
+        val sample = BatteryTelemetry(3 * hour, 3 * hour, 2 * hour, 50, false, 3, false, null)
+        val observations = listOf(interval(0, hour, 70, 60, true),
+            interval(hour, 2 * hour, 60, 55, false),
+            interval(2 * hour, 3 * hour, 55, 50, false).copy(source = "MISSING",
+                measuredMs = 0, missingMs = hour, deepSleepMs = hour))
+        val estimate = BatteryEstimates.estimate(sample, null, emptyList(), observations, settings)
+        assertEquals(5 * hour, estimate.screenOnRemainingMs)
+        assertNull(estimate.screenOffRemainingMs)
+        assertNull(estimate.mixedRemainingMs)
+
+        val coveredSleep = observations.last().copy(source = "COUNTER", measuredMs = hour,
+            missingMs = 0, netMah = -200.0)
+        val covered = BatteryEstimates.estimate(sample, null, emptyList(),
+            observations.dropLast(1) + coveredSleep, settings)
+        assertEquals(10 * hour, covered.screenOffRemainingMs)
+        assertNotNull(covered.mixedRemainingMs)
+    }
+
     @Test fun `SOC only continuous observations predict without granting mAh or health coverage`() {
         val engine = BatteryAnalytics()
         val intervals = mutableListOf<BatteryInterval>()

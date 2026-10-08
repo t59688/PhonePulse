@@ -24,8 +24,8 @@ class BatterySamplingTest {
         val dao = AppDatabase.getInstance(context).batteryDao()
         dao.clearAll()
         val repository = BatteryRepository(context)
-        repository.recordBatterySnapshot()
-        repository.recordBatterySnapshot()
+        repository.recordBatterySnapshot(LiveBatteryInfo(percentage = 80))
+        repository.recordBatterySnapshot(LiveBatteryInfo(percentage = 80))
         assertEquals(1, dao.getRecordsForDateSync(TimeFormatter.todayKey()).size)
         dao.clearAll()
     }
@@ -39,8 +39,8 @@ class BatterySamplingTest {
         val uiRepository = BatteryRepository(context)
         coroutineScope {
             repeat(10) {
-                launch { serviceRepository.recordBatterySnapshot() }
-                launch { uiRepository.recordBatterySnapshot() }
+                launch { serviceRepository.recordBatterySnapshot(LiveBatteryInfo(percentage = 80)) }
+                launch { uiRepository.recordBatterySnapshot(LiveBatteryInfo(percentage = 80)) }
             }
         }
         assertEquals(1, dao.getRecordsForDateSync(TimeFormatter.todayKey()).size)

@@ -95,6 +95,11 @@ object ScreenStateHolder {
      * Initializes state from DB and preferences
      */
     fun initialize(context: Context) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val isScreenCurrentlyOn = powerManager?.isInteractive ?: true
+        _isScreenOn.value = isScreenCurrentlyOn
+        _stateStartTime.value = System.currentTimeMillis()
+
         scope.launch(Dispatchers.IO) {
             try {
                 val dao = AppDatabase.getInstance(context).screenSessionDao()
@@ -109,6 +114,16 @@ object ScreenStateHolder {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    /**
+     * Synchronizes current screen state when service starts or receives system callbacks
+     */
+    fun syncScreenState(isCurrentlyOn: Boolean) {
+        if (_isScreenOn.value != isCurrentlyOn) {
+            _isScreenOn.value = isCurrentlyOn
+            _stateStartTime.value = System.currentTimeMillis()
         }
     }
 

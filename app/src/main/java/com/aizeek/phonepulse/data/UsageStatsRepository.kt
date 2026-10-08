@@ -183,19 +183,15 @@ class UsageStatsRepository(private val context: Context) {
         // Sort descending by foreground active time initially
         result.sortByDescending { it.totalTimeInForegroundMs }
 
-        // Preserve the optional legacy estimate without fabricating a minimum drain or battery capacity.
+        // Foreground duration supports an activity share, not an energy attribution.
         val safeTotal = if (totalAllForegroundMs > 0) totalAllForegroundMs.toFloat() else 1f
-        val effectiveDeviceDrain = totalDeviceDrainPct.coerceAtLeast(0f)
 
         result.map { item ->
             val fraction = (item.totalTimeInForegroundMs / safeTotal)
             val fgPct = fraction * 100f
 
-            val totalDrainPct = (fraction * effectiveDeviceDrain)
-
             item.copy(
-                percentageOfTotal = fgPct,
-                estimatedBatteryDrainPct = totalDrainPct
+                percentageOfTotal = fgPct
             )
         }
     }

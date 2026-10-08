@@ -22,6 +22,8 @@ class BootCompletedReceiverTest {
     private class RecordingContext(base: Context) : ContextWrapper(base) {
         var startedService: Intent? = null
 
+        override fun getApplicationContext(): Context = this
+
         override fun startForegroundService(service: Intent): ComponentName? {
             startedService = service
             return service.component
@@ -52,6 +54,42 @@ class BootCompletedReceiverTest {
         val context = context()
 
         BootCompletedReceiver().onReceive(context, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+
+        assertEquals(
+            ScreenTrackerService::class.java.name,
+            context.startedService?.component?.className
+        )
+    }
+
+    @Test
+    fun `locked boot completed restores tracking service`() {
+        val context = context()
+
+        BootCompletedReceiver().onReceive(context, Intent(Intent.ACTION_LOCKED_BOOT_COMPLETED))
+
+        assertEquals(
+            ScreenTrackerService::class.java.name,
+            context.startedService?.component?.className
+        )
+    }
+
+    @Test
+    fun `quickboot poweron restores tracking service`() {
+        val context = context()
+
+        BootCompletedReceiver().onReceive(context, Intent("android.intent.action.QUICKBOOT_POWERON"))
+
+        assertEquals(
+            ScreenTrackerService::class.java.name,
+            context.startedService?.component?.className
+        )
+    }
+
+    @Test
+    fun `reboot action restores tracking service`() {
+        val context = context()
+
+        BootCompletedReceiver().onReceive(context, Intent(Intent.ACTION_REBOOT))
 
         assertEquals(
             ScreenTrackerService::class.java.name,

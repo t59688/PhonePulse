@@ -72,6 +72,7 @@ fun KeepAliveScreen(
     onRequestBatteryOptimization: () -> Unit,
     onRequestUsagePermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onRequestAutoStart: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var expandedVendorGuide by remember { mutableStateOf(false) }
@@ -110,6 +111,7 @@ fun KeepAliveScreen(
             onRequestBatteryOptimization = onRequestBatteryOptimization,
             onRequestUsagePermission = onRequestUsagePermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
+            onRequestAutoStart = onRequestAutoStart,
             expandedVendorGuide = expandedVendorGuide,
             onToggleVendorGuide = { expandedVendorGuide = !expandedVendorGuide }
         )
@@ -129,6 +131,7 @@ fun LazyListScope.keepAliveItems(
     onRequestBatteryOptimization: () -> Unit,
     onRequestUsagePermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onRequestAutoStart: () -> Unit = {},
     expandedVendorGuide: Boolean,
     onToggleVendorGuide: () -> Unit
 ) {
@@ -315,15 +318,15 @@ fun LazyListScope.keepAliveItems(
             )
         }
 
-        // Item 5: 开机自启动守护
+        // Item 5: 开机自启动守护与系统设置
         item {
             KeepAliveItemCard(
-                title = "开机自启广播接收器",
-                subtitle = "已注册开机与应用升级恢复；小米等机型仍需在系统设置允许自启动",
-                isPassed = true,
+                title = "开机自启广播与系统自启动",
+                subtitle = "开机恢复广播已就绪；国内机型（小米/华为/OPPO/vivo）必须开启系统「允许自启动」",
+                isPassed = isBatteryIgnoring,
                 icon = Icons.Default.PowerSettingsNew,
                 trailingContent = {
-                    PassedBadge(label = "应用侧就绪")
+                    ActionButton(text = "去设置", onClick = onRequestAutoStart)
                 }
             )
         }

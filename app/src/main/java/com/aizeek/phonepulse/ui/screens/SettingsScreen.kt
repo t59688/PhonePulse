@@ -70,6 +70,7 @@ fun SettingsScreen(
     onRequestBatteryOptimization: () -> Unit,
     onRequestUsagePermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onRequestAutoStart: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val updateState by updateRepository.state.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
@@ -142,6 +143,7 @@ fun SettingsScreen(
             onRequestBatteryOptimization = onRequestBatteryOptimization,
             onRequestUsagePermission = onRequestUsagePermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
+            onRequestAutoStart = onRequestAutoStart,
             expandedVendorGuide = expandedVendorGuide,
             onToggleVendorGuide = { expandedVendorGuide = !expandedVendorGuide }
         )

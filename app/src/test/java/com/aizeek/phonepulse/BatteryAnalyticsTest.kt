@@ -10,6 +10,99 @@ class BatteryAnalyticsTest {
         current: Double? = 1_000_000.0, awake: Long = t, screen: Boolean = true,
         counter: Long? = null) = BatteryTelemetry(t, t, awake, pct, plugged, 2, screen, current, counter)
 
+    @Test fun `delayed counter does not count already integrated charge twice`() {
+        for (sign in listOf(1, -1)) {
+            val engine = BatteryAnalytics()
+            engine.accept(sample(0, plugged = sign > 0, current = sign * 360_000.0,
+                counter = 1_000_000), settings)
+            engine.accept(sample(5000, plugged = sign > 0, current = sign * 360_000.0,
+                counter = 1_000_000), settings)
+            val update = engine.accept(sample(10000, plugged = sign > 0,
+                current = sign * 360_000.0, counter = 1_000_000L + sign * 1000), settings)
+            assertEquals(sign * 1.0, update.active.netMah, 0.000001)
+            assertEquals(10000L, update.active.measuredMs)
+        }
+    }
+
+    @Test fun `high resolution counter does not change the awake measurement source`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, current = 360_000.0, counter = 1_000_000), settings)
+        val update = engine.accept(sample(5000, current = 360_000.0, counter = 1_000_500), settings)
+        assertEquals("CURRENT", update.interval!!.source)
+        assertEquals(0.5, update.active.netMah, 0.000001)
+    }
+
+    @Test fun `counter covers sleep without repeating its delayed awake charge`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, current = 360_000.0, counter = 1_000_000), settings)
+        engine.accept(sample(5000, current = 360_000.0, counter = 1_000_000), settings)
+        val slept = engine.accept(sample(15000, current = 360_000.0, awake = 6000,
+            counter = 1_001_500), settings)
+        assertEquals(1.5, slept.active.netMah, 0.000001)
+        assertEquals(1.0, slept.interval!!.netMah, 0.000001)
+        assertEquals("COUNTER", slept.interval!!.source)
+        val resumed = engine.accept(sample(20000, current = 360_000.0, awake = 11000,
+            counter = 1_002_000), settings)
+        assertEquals(2.0, resumed.active.netMah, 0.000001)
+    }
+
+    @Test fun `current loss uses counter without repeating earlier awake integration`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, current = 360_000.0, counter = 1_000_000), settings)
+        engine.accept(sample(5000, current = 360_000.0, counter = 1_000_000), settings)
+        val lost = engine.accept(sample(10000, current = null, counter = 1_001_000), settings)
+        assertEquals(1.0, lost.active.netMah, 0.000001)
+        assertEquals(0.5, lost.interval!!.netMah, 0.000001)
+    }
+
+    @Test fun `counter recovery after missing data does not fill the gap`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, current = 360_000.0, counter = 1_000_000), settings)
+        engine.accept(sample(5000, current = null, counter = null), settings)
+        val recovered = engine.accept(sample(10000, current = null, counter = 1_001_000), settings)
+        assertEquals(0.0, recovered.active.netMah, 0.0)
+        assertEquals(10000L, recovered.active.missingMs)
+        val next = engine.accept(sample(15000, current = null, counter = 1_001_500), settings)
+        assertEquals(0.5, next.active.netMah, 0.000001)
+        assertEquals(5000L, next.active.measuredMs)
+    }
+
+    @Test fun `power source change closes the old source with its previous current`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, current = 1_000_000.0).copy(plugType = "USB"), settings)
+        val switched = engine.accept(sample(3600, current = 2_000_000.0)
+            .copy(plugType = "AC"), settings)
+        assertEquals("POWER_SOURCE_CHANGE", switched.completed!!.completionReason)
+        assertEquals(1.0, switched.completed!!.netMah, 0.000001)
+        assertEquals("USB", switched.interval!!.plugType)
+        assertEquals("AC", switched.active.plugType)
+        assertEquals(0.0, switched.active.netMah, 0.0)
+    }
+
+    @Test fun `signed sleep remainder can reverse earlier net charge with current evidence`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, current = 1_080_000.0, counter = 1_000_000), settings)
+        engine.accept(sample(5000, current = -360_000.0, counter = 1_000_000), settings)
+        val asleep = engine.accept(sample(10000, current = -360_000.0,
+            awake = 6000, counter = 1_000_250), settings)
+        assertEquals(-0.25, asleep.interval!!.netMah, 0.000001)
+        assertEquals(0.25, asleep.active.netMah, 0.000001)
+    }
+
+    @Test fun `starting at full SOC cannot fabricate charge to first100`() {
+        val engine = BatteryAnalytics()
+        assertNull(engine.accept(sample(0, 100), settings).active.to100Mah)
+        assertNull(engine.accept(sample(30000, 100), settings).active.to100Mah)
+    }
+
+    @Test fun `reaching100 without measured coverage cannot fabricate charge to first100`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, 99, current = null), settings)
+        assertNull(engine.accept(sample(30000, 100, current = null), settings).active.to100Mah)
+        engine.accept(sample(60000, 100), settings)
+        assertNull(engine.accept(sample(90000, 100), settings).active.to100Mah)
+    }
+
     @Test fun `trapezoid preserves signed net current and old screen bucket`() {
         val engine = BatteryAnalytics()
         engine.accept(sample(0), settings)
@@ -17,6 +110,8 @@ class BatteryAnalyticsTest {
         assertEquals(0.25, update.active.netMah, 0.000001)
         assertEquals(0.25, update.active.screenOnMah, 0.000001)
         assertEquals(0.0, update.active.screenOffMah, 0.0)
+        assertEquals(3600L, update.active.screenOnMeasuredMs)
+        assertEquals(0L, update.active.screenOffMeasuredMs)
         assertTrue(update.interval!!.screenOn)
     }
 
@@ -29,6 +124,8 @@ class BatteryAnalyticsTest {
         val next = engine.accept(sample(3600, screen = false), settings)
         assertEquals(0.0, next.active.screenOnMah, 0.0)
         assertEquals(1.0, next.active.screenOffMah, 0.0)
+        assertEquals(0L, next.active.screenOnMeasuredMs)
+        assertEquals(3600L, next.active.screenOffMeasuredMs)
     }
 
     @Test fun `sleep and long gaps are missing without validated counter`() {

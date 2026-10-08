@@ -294,7 +294,8 @@ fun MainScreen(
                             onToggleService = { viewModel.toggleService(it) },
                             onRequestBatteryOptimization = { KeepAliveHelper.requestIgnoreBatteryOptimizations(context) },
                             onRequestUsagePermission = { KeepAliveHelper.openUsageAccessSettings(context) },
-                            onRequestNotificationPermission = { KeepAliveHelper.openAppNotificationSettings(context) }
+                            onRequestNotificationPermission = { KeepAliveHelper.openAppNotificationSettings(context) },
+                            onRequestAutoStart = { KeepAliveHelper.openAutoStartSettings(context) }
                         )
                     }
                 }

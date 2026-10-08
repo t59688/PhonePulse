@@ -33,6 +33,24 @@ class BatteryMonitorUiTest {
         compose.onNodeWithText("净电流 +0 mA").assertIsDisplayed()
     }
 
+    @Test fun `missing screen bucket measurements are not presented as zero charge`() {
+        val cycle = BatteryCycle(charging = false, startTime = 0, lastTime = 30_000,
+            lastElapsedMs = 30_000, startPct = 80, endPct = 80, missingMs = 30_000)
+        compose.setContent { PhonePulseTheme {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                BatteryMeasurementCard(BatteryMonitorUiState(activeCycle = cycle))
+            }
+        } }
+        compose.onAllNodesWithText("0 mAh").assertCountEquals(0)
+    }
+
+    @Test fun `missing system readings are shown as unknown`() {
+        compose.setContent { PhonePulseTheme { BatteryStatsCard(LiveBatteryInfo()) } }
+        compose.onNodeWithText("当前电量 暂不可用").assertExists()
+        compose.onNodeWithText("电池温度: 暂不可用").assertExists()
+        compose.onNodeWithText("系统电池状态: 未知 · 电压: 暂不可用").assertExists()
+    }
+
     @Test fun `initial health explains insufficient samples`() {
         compose.setContent { PhonePulseTheme { BatteryHealthCard(BatteryMonitorUiState()) } }
         compose.onNodeWithText("估算实际容量 暂无可靠估算").assertIsDisplayed()
@@ -52,7 +70,7 @@ class BatteryMonitorUiTest {
         } }
         compose.onNodeWithText("有效样本 1 次").assertExists()
         compose.onNodeWithText("容量趋势：等待有效充电记录").assertDoesNotExist()
-        compose.onNodeWithText("有效充电估算趋势 · 4000 → 4000 mAh").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("按记录顺序 · 4000 → 4000 mAh").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun `unusual health estimate advises checking calibration`() {
@@ -74,6 +92,18 @@ class BatteryMonitorUiTest {
         compose.onNodeWithText("满电后的继续充入量仅作记录，不能据此判断危险过充。").performScrollTo().assertIsDisplayed()
     }
 
+    @Test fun `legacy active cycle starting full cannot display fabricated first full charge`() {
+        val cycle = BatteryCycle(charging = true, startTime = 1, lastTime = 2, lastElapsedMs = 2,
+            startPct = 100, endPct = 100, to100Mah = 0.0)
+        compose.setContent { PhonePulseTheme {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                BatteryMeasurementCard(BatteryMonitorUiState(activeCycle = cycle))
+            }
+        } }
+        compose.onNodeWithText("首次达到 100% 时累计 0 mAh").assertDoesNotExist()
+        compose.onNodeWithText("此后净充入 0 mAh").assertDoesNotExist()
+    }
+
     @Test fun `system battery status is distinct from measured health`() {
         compose.setContent { PhonePulseTheme { BatteryStatsCard(LiveBatteryInfo()) } }
         compose.onNodeWithText("系统电池状态:", substring = true).assertIsDisplayed()
@@ -82,7 +112,7 @@ class BatteryMonitorUiTest {
 
     @Test fun `unobserved discharge rates are pending rather than zero`() {
         compose.setContent { PhonePulseTheme { BatteryStatsCard(LiveBatteryInfo()) } }
-        compose.onAllNodesWithText("待统计").assertCountEquals(2)
+        compose.onAllNodesWithText("待统计").assertCountEquals(3)
         compose.onAllNodesWithText("~0.0%/h").assertCountEquals(0)
     }
 

@@ -12,7 +12,7 @@ import com.aizeek.phonepulse.battery.BatteryMonitorState
 import com.aizeek.phonepulse.battery.BatteryMonitorDao
 
 @Database(entities = [ScreenSession::class, BatteryRecord::class, BatteryCycle::class,
-    BatteryInterval::class, BatteryMonitorState::class], version = 3, exportSchema = true)
+    BatteryInterval::class, BatteryMonitorState::class], version = 4, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun screenSessionDao(): ScreenSessionDao
     abstract fun batteryDao(): BatteryDao
@@ -54,6 +54,25 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_battery_intervals_cycleId ON battery_intervals(cycleId)")
             }
         }
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""CREATE TABLE battery_records_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, timestamp INTEGER NOT NULL,
+                    level INTEGER NOT NULL, scale INTEGER NOT NULL, percentage INTEGER NOT NULL,
+                    isCharging INTEGER NOT NULL, plugType TEXT NOT NULL, health TEXT NOT NULL,
+                    temperature REAL, voltage INTEGER, screenState TEXT NOT NULL, dateKey TEXT NOT NULL,
+                    plugged INTEGER)""")
+                db.execSQL("""INSERT INTO battery_records_new
+                    (id,timestamp,level,scale,percentage,isCharging,plugType,health,temperature,voltage,screenState,dateKey)
+                    SELECT id,timestamp,level,scale,percentage,isCharging,plugType,health,temperature,voltage,screenState,dateKey
+                    FROM battery_records""")
+                db.execSQL("DROP TABLE battery_records")
+                db.execSQL("ALTER TABLE battery_records_new RENAME TO battery_records")
+                // Existing bucket charges have no measured-duration evidence; zero means unknown.
+                db.execSQL("ALTER TABLE battery_cycles ADD COLUMN screenOnMeasuredMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE battery_cycles ADD COLUMN screenOffMeasuredMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -63,7 +82,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "phone_pulse.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
                 INSTANCE = instance
                 instance
             }
