@@ -233,28 +233,78 @@ class ScreenTrackerService : Service() {
         val isScreenOn = ScreenStateHolder.isScreenOn.value
         val startTime = ScreenStateHolder.stateStartTime.value
         val lastOff = ScreenStateHolder.lastScreenOffDuration.value
-
-        val title = if (isScreenOn) "屏幕点亮 · 正在计时" else "屏幕休眠 · 息屏计时中"
-        val currentDuration = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
         val lastOn = ScreenStateHolder.lastScreenOnDuration.value
 
-        val screenContent = if (isScreenOn) {
-            val lastOffText = lastOff?.let { TimeFormatter.formatSingleUnit(it) } ?: "--"
-            val currentOnText = TimeFormatter.formatSingleUnit(currentDuration)
-            "上次息屏：$lastOffText | 本次亮屏：$currentOnText"
+        val currentDuration = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
+        val currentDurationText = TimeFormatter.formatSingleUnit(currentDuration)
+
+        val lastDurationText = if (isScreenOn) {
+            lastOff?.let { TimeFormatter.formatSingleUnit(it) }
         } else {
-            val lastOnText = lastOn?.let { TimeFormatter.formatSingleUnit(it) } ?: "--"
-            val currentOffText = TimeFormatter.formatSingleUnit(currentDuration)
-            "上次亮屏：$lastOnText | 本次息屏：$currentOffText"
+            lastOn?.let { TimeFormatter.formatSingleUnit(it) }
         }
+
         val battery = if (::monitor.isInitialized) monitor.state.value else null
-        val batteryContent = battery?.activeCycle?.let { cycle ->
-            val current = battery.currentUa?.let { String.format(java.util.Locale.getDefault(), "%+.0f mA", it / 1000) }
-                ?: "电流暂不可用"
-            val time = if (cycle.charging) battery.estimates.toTargetMs else battery.estimates.mixedRemainingMs
-            "${cycle.endPct}% · $current" + (time?.let { " · 约${TimeFormatter.formatSingleUnit(it)}" } ?: "")
+        val activeCycle = battery?.activeCycle
+
+        // 1. 标题行：承载当前核心状态（当前亮/息屏时长 + 实时电量）
+        val title = if (activeCycle != null) {
+            val chargeIcon = if (activeCycle.charging) " ⚡" else ""
+            if (isScreenOn) "亮屏 $currentDurationText · ${activeCycle.endPct}%$chargeIcon"
+            else "息屏 $currentDurationText · ${activeCycle.endPct}%$chargeIcon"
+        } else {
+            if (isScreenOn) "亮屏 $currentDurationText" else "息屏 $currentDurationText"
         }
-        val contentText = batteryContent?.let { "$screenContent | $it" } ?: screenContent
+
+        // 2. 电池辅助信息（电流与预估）
+        val currentStr = battery?.currentUa?.let {
+            String.format(java.util.Locale.getDefault(), "%+.0f mA", it / 1000)
+        }
+        val estimateMs = activeCycle?.let { cycle ->
+            if (cycle.charging) battery.estimates.toTargetMs else battery.estimates.mixedRemainingMs
+        }
+        val estimateText = estimateMs?.let { "约${TimeFormatter.formatSingleUnit(it)}" }
+
+        // 3. 正文行（折叠态单行）：极简精炼，去除长前缀与多重竖线，窄屏绝不换行
+        val contentText = when {
+            lastDurationText != null && currentStr != null -> {
+                val lastLabel = if (isScreenOn) "上次息屏" else "上次亮屏"
+                "$lastLabel $lastDurationText · $currentStr"
+            }
+            lastDurationText != null -> {
+                val lastLabel = if (isScreenOn) "上次息屏" else "上次亮屏"
+                "$lastLabel $lastDurationText"
+            }
+            currentStr != null && estimateText != null -> {
+                "$currentStr · $estimateText"
+            }
+            currentStr != null -> {
+                "净电流 $currentStr"
+            }
+            else -> {
+                if (isScreenOn) "屏幕持续运行中" else "屏幕休眠待机中"
+            }
+        }
+
+        // 4. 下拉展开详情（BigTextStyle）：多行结构化展示完整信息
+        val bigText = buildString {
+            append(if (isScreenOn) "本次亮屏：$currentDurationText" else "本次息屏：$currentDurationText")
+            if (lastDurationText != null) {
+                append("\n")
+                append(if (isScreenOn) "上次息屏：$lastDurationText" else "上次亮屏：$lastDurationText")
+            }
+            if (activeCycle != null) {
+                append("\n")
+                val statusDesc = if (activeCycle.charging) "充电中" else "放电中"
+                append("电池状态：${activeCycle.endPct}%")
+                if (currentStr != null) append(" · $currentStr ($statusDesc)")
+                if (estimateText != null) {
+                    append("\n")
+                    val estimateLabel = if (activeCycle.charging) "预计充满：" else "预计续航："
+                    append("$estimateLabel$estimateText")
+                }
+            }
+        }
 
         val appIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -271,6 +321,7 @@ class ScreenTrackerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
