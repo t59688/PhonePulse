@@ -247,62 +247,23 @@ class ScreenTrackerService : Service() {
         val battery = if (::monitor.isInitialized) monitor.state.value else null
         val activeCycle = battery?.activeCycle
 
-        // 1. 标题行：承载当前核心状态（当前亮/息屏时长 + 实时电量）
-        val title = if (activeCycle != null) {
-            val chargeIcon = if (activeCycle.charging) " ⚡" else ""
-            if (isScreenOn) "亮屏 $currentDurationText · ${activeCycle.endPct}%$chargeIcon"
-            else "息屏 $currentDurationText · ${activeCycle.endPct}%$chargeIcon"
-        } else {
-            if (isScreenOn) "亮屏 $currentDurationText" else "息屏 $currentDurationText"
-        }
-
-        // 2. 电池辅助信息（电流与预估）
         val currentStr = battery?.currentUa?.let {
             String.format(java.util.Locale.getDefault(), "%+.0f mA", it / 1000)
         }
-        val estimateMs = activeCycle?.let { cycle ->
-            if (cycle.charging) battery.estimates.toTargetMs else battery.estimates.mixedRemainingMs
-        }
-        val estimateText = estimateMs?.let { "约${TimeFormatter.formatSingleUnit(it)}" }
 
-        // 3. 正文行（折叠态单行）：极简精炼，去除长前缀与多重竖线，窄屏绝不换行
-        val contentText = when {
-            lastDurationText != null && currentStr != null -> {
-                val lastLabel = if (isScreenOn) "上次息屏" else "上次亮屏"
-                "$lastLabel $lastDurationText · $currentStr"
-            }
-            lastDurationText != null -> {
-                val lastLabel = if (isScreenOn) "上次息屏" else "上次亮屏"
-                "$lastLabel $lastDurationText"
-            }
-            currentStr != null && estimateText != null -> {
-                "$currentStr · $estimateText"
-            }
-            currentStr != null -> {
-                "净电流 $currentStr"
-            }
-            else -> {
-                if (isScreenOn) "屏幕持续运行中" else "屏幕休眠待机中"
-            }
-        }
+        val stateLabel = if (isScreenOn) "亮屏" else "息屏"
 
-        // 4. 下拉展开详情（BigTextStyle）：多行结构化展示完整信息
-        val bigText = buildString {
-            append(if (isScreenOn) "本次亮屏：$currentDurationText" else "本次息屏：$currentDurationText")
-            if (lastDurationText != null) {
-                append("\n")
-                append(if (isScreenOn) "上次息屏：$lastDurationText" else "上次亮屏：$lastDurationText")
-            }
+        // 纯单行通知文本（控制在 16~18 字符内，严格保证窄屏不折行）
+        val singleLineTitle = buildString {
+            append("$stateLabel $currentDurationText")
             if (activeCycle != null) {
-                append("\n")
-                val statusDesc = if (activeCycle.charging) "充电中" else "放电中"
-                append("电池状态：${activeCycle.endPct}%")
-                if (currentStr != null) append(" · $currentStr ($statusDesc)")
-                if (estimateText != null) {
-                    append("\n")
-                    val estimateLabel = if (activeCycle.charging) "预计充满：" else "预计续航："
-                    append("$estimateLabel$estimateText")
-                }
+                append(" · ${activeCycle.endPct}%")
+                if (activeCycle.charging) append("⚡")
+            }
+            if (currentStr != null) {
+                append(" · $currentStr")
+            } else if (lastDurationText != null) {
+                append(" · 上次 $lastDurationText")
             }
         }
 
@@ -316,12 +277,9 @@ class ScreenTrackerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Use the standard Android notification icon path. OEM SystemUI implementations
-        // remain responsible for presentation; do not inject vendor-private icon extras.
+        // 仅设置 setContentTitle，不设置 setContentText 和 setStyle，保证通知栏仅占一行高度且单行不换行
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setContentTitle(singleLineTitle)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
