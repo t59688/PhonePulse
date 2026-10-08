@@ -247,12 +247,14 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
                         text = "净电流 $currentFormatted",
                         color = if (state.currentUa != null && state.currentUa > 0) NeonEmerald else NeonCyan,
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.align(Alignment.CenterVertically)
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier
+                            .align(Alignment.CenterVertically)
                             .clip(RoundedCornerShape(12.dp))
                             .background(SurfaceDark.copy(alpha = 0.6f))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
