@@ -226,12 +226,15 @@ class BatteryRepository(private val context: Context) {
                 // Event history has a 15-minute heartbeat. Larger gaps cannot establish screen attribution.
                 if (deltaTime > 15 * 60_000L || prev.plugged != false || next.plugged != false ||
                     prev.isCharging || next.isCharging) continue
-                if (prev.screenState == "SCREEN_ON") {
-                    onDrain += deltaLevel
-                    onTimeMs += deltaTime
-                } else {
-                    offDrain += deltaLevel
-                    offTimeMs += deltaTime
+                when (prev.screenState) {
+                    "SCREEN_ON" -> {
+                        onDrain += deltaLevel
+                        onTimeMs += deltaTime
+                    }
+                    "SCREEN_OFF" -> {
+                        offDrain += deltaLevel
+                        offTimeMs += deltaTime
+                    }
                 }
             }
         }
@@ -252,15 +255,6 @@ class BatteryRepository(private val context: Context) {
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun getTodayBatteryRecords(): Flow<List<BatteryRecord>> = flow {
-        while (true) {
-            val now = System.currentTimeMillis()
-            emit(TimeFormatter.dateKey(now))
-            val nextDay = Calendar.getInstance().apply {
-                timeInMillis = TimeFormatter.getStartOfDay(now)
-                add(Calendar.DATE, 1)
-            }.timeInMillis
-            delay((nextDay - now).coerceAtLeast(1L))
-        }
-    }.distinctUntilChanged().flatMapLatest { dao.getRecordsForDate(it) }
+    fun getTodayBatteryRecords(): Flow<List<BatteryRecord>> =
+        ScreenStateHolder.currentDateKey.flatMapLatest { dao.getRecordsForDate(it) }
 }

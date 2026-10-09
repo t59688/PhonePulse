@@ -10,6 +10,22 @@ class BatteryAnalyticsTest {
         current: Double? = 1_000_000.0, awake: Long = t, screen: Boolean = true,
         counter: Long? = null) = BatteryTelemetry(t, t, awake, pct, plugged, 2, screen, current, counter)
 
+    @Test fun `charge from thirty to full interrupted at seventy produces two usable short sessions`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, 30), settings)
+        for (step in 1..160) engine.accept(sample(step * 60_000L, 30 + step / 4), settings)
+        val first = engine.accept(sample(160 * 60_000L, 70, plugged = false), settings).completed!!
+        val reconnect = 161 * 60_000L
+        engine.accept(sample(reconnect, 70), settings)
+        for (step in 1..120) engine.accept(sample(reconnect + step * 60_000L, 70 + step / 4), settings)
+        val second = engine.accept(sample(reconnect + 120 * 60_000L, 100, plugged = false), settings).completed!!
+        assertNull(first.rejectionReason)
+        assertNull(second.rejectionReason)
+        assertTrue(first.measuredMs > 0)
+        assertTrue(second.measuredMs > 0)
+        assertEquals(2, BatteryEstimates.health(listOf(first, second), settings).acceptedCount)
+    }
+
     @Test fun `delayed counter does not count already integrated charge twice`() {
         for (sign in listOf(1, -1)) {
             val engine = BatteryAnalytics()
@@ -240,6 +256,27 @@ class BatteryAnalyticsTest {
         assertEquals(frozen * 100 / 80, completed.estimatedCapacityMah!!, 0.0)
     }
 
+    @Test fun `maintenance coverage cannot qualify a previously rejected full prefix`() {
+        val engine = BatteryAnalytics()
+        engine.accept(sample(0, 20, current = null), settings)
+        for (step in 1..320) engine.accept(sample(step * 60_000L,
+            20 + step / 4, current = if (step < 81) null else 600_000.0), settings)
+        val fullTime = 320 * 60_000L
+        var prefix: BatteryCycle? = null
+        for (step in 1..6) prefix = engine.accept(sample(fullTime + step * 60_000L,
+            100, current = 50_000.0).copy(status = 5), settings).active
+        assertNotNull(prefix!!.fullChargeMah)
+        assertNull(prefix.estimatedCapacityMah)
+        for (step in 7..700) engine.accept(sample(fullTime + step * 60_000L,
+            100, current = 50_000.0).copy(status = 5), settings)
+        val completed = engine.accept(sample(fullTime + 700 * 60_000L,
+            100, plugged = false), settings).completed!!
+        assertTrue(completed.measuredMs.toDouble() / (completed.measuredMs + completed.missingMs) >= 0.9)
+        assertNull(completed.estimatedCapacityMah)
+        assertEquals("LOW_COVERAGE", completed.rejectionReason)
+        assertEquals(0, BatteryEstimates.health(listOf(completed), settings).acceptedCount)
+    }
+
     @Test fun `unavailable current or sampling gap resets full termination confirmation`() {
         val engine = BatteryAnalytics()
         engine.accept(sample(0, 100, current = 50_000.0).copy(status = 5), settings)
@@ -259,11 +296,13 @@ class BatteryAnalyticsTest {
         for (step in 1..6) confirmed = engine.accept(sample(fullTime + step * 60_000,
             100, current = 50_000.0).copy(status = 5), settings).active
         assertNotNull(confirmed!!.estimatedCapacityMah)
+        assertEquals(1, BatteryEstimates.health(listOf(confirmed), settings).acceptedCount)
         val restored = BatteryAnalytics()
         restored.restore(confirmed)
         val idle = restored.accept(sample(fullTime + 24 * 3_600_000L, 100,
             current = null), settings).active
         assertEquals("INCOMPLETE_RESTORE", idle.rejectionReason)
+        assertEquals(1, BatteryEstimates.health(listOf(idle), settings).acceptedCount)
         val closed = restored.accept(sample(10_000, 100), settings).completed!!
         assertEquals("REBOOT", closed.completionReason)
         assertNull(closed.rejectionReason)

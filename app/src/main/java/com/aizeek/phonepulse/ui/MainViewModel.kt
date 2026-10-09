@@ -106,8 +106,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val recentSessions: StateFlow<List<ScreenSession>> = screenRepo.recentSessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _hourlyStats = MutableStateFlow<List<HourlyScreenStat>>(emptyList())
-    val hourlyStats: StateFlow<List<HourlyScreenStat>> = _hourlyStats.asStateFlow()
+    val hourlyStats: StateFlow<List<HourlyScreenStat>> = screenRepo.getHourlyBreakdownFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _appUsageList = MutableStateFlow<List<AppUsageInfo>>(emptyList())
     val appUsageList: StateFlow<List<AppUsageInfo>> = _appUsageList.asStateFlow()
@@ -151,10 +151,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshHourlyStats() {
-        viewModelScope.launch {
-            val stats = screenRepo.getHourlyBreakdown()
-            _hourlyStats.value = stats
-        }
+        ScreenStateHolder.refreshDateKey()
     }
 
     fun setUsagePeriod(period: UsagePeriod) {

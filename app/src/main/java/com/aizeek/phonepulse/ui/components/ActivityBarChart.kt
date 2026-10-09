@@ -45,8 +45,8 @@ fun ActivityBarChart(
     hourlyStats: List<HourlyScreenStat>,
     modifier: Modifier = Modifier
 ) {
-    val currentHour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
-    var selectedHour by remember { mutableStateOf<Int?>(currentHour) }
+    val currentHour = remember(hourlyStats) { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
+    var selectedHour by remember(hourlyStats) { mutableStateOf<Int?>(currentHour) }
 
     Box(
         modifier = modifier

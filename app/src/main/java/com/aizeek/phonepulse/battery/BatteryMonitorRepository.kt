@@ -40,14 +40,17 @@ class BatteryMonitorRepository(private val database: AppDatabase, scope: Corouti
         dao.observeIntervals(), freshRuntime, operationError) { persisted, cycles, intervals, live, actionError ->
         val settings = persisted?.settings ?: BatteryMonitorSettings()
         val sample = live.sample
+        val healthCycles = listOfNotNull(live.cycle) + cycles.filterNot { it.id == live.cycle?.id }
         val current = sample?.takeIf { live.running && live.error == null }?.currentUa?.times(settings.currentScale)?.times(settings.cellFactor)
             ?.times(if (settings.invertCurrent) -1 else 1)?.takeIf { it.isFinite() && kotlin.math.abs(it) <= 20_000_000 }
         BatteryMonitorUiState(settings = settings, currentUa = current,
             chargeCounterUah = sample?.takeIf { live.running && live.error == null }
                 ?.chargeCounterUah?.times(settings.cellFactor),
             lastSampleTime = sample?.timestamp, activeCycle = live.cycle ?: cycles.firstOrNull { it.endTime == null },
-            cycles = cycles.filter { it.endTime != null }.take(500),
-            health = BatteryEstimates.health(cycles, settings),
+            cycles = cycles.filter { it.endTime != null }.take(500).map {
+                BatteryEstimates.healthSample(it, settings) ?: it
+            },
+            health = BatteryEstimates.health(healthCycles, settings),
             estimates = if (live.running && live.error == null) BatteryEstimates.estimate(sample, live.cycle, cycles, intervals, settings)
                 else BatteryTimeEstimates(), error = actionError ?: live.error, isRunning = live.running)
     }.stateIn(scope, SharingStarted.WhileSubscribed(5000), BatteryMonitorUiState())

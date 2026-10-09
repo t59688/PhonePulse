@@ -94,7 +94,9 @@ fun MainScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                com.aizeek.phonepulse.service.ScreenStateHolder.refreshDateKey()
                 viewModel.refreshPermissions()
+                viewModel.refreshHourlyStats()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

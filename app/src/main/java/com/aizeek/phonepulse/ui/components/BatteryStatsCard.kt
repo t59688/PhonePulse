@@ -240,6 +240,16 @@ fun BatteryStatsCard(
                 }
             }
 
+            if (batteryInfo.todayDrainKnown) {
+                val unattributed = batteryInfo.todayTotalDrainPct -
+                    batteryInfo.totalScreenOnDrainPct - batteryInfo.totalScreenOffDrainPct
+                Text(
+                    text = "亮屏 ${batteryInfo.totalScreenOnDrainPct} · 熄屏 ${batteryInfo.totalScreenOffDrainPct} · 未归属 $unattributed 个百分点",
+                    color = TextTertiary,
+                    fontSize = 10.sp
+                )
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Screen On vs Screen Off Drain Comparison

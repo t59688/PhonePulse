@@ -49,6 +49,48 @@ object ScreenStateHolder {
         _isServiceRunning.value = running
     }
 
+    private val _currentDateKey = MutableStateFlow(TimeFormatter.todayKey())
+    val currentDateKey: StateFlow<String> = _currentDateKey.asStateFlow()
+
+    fun checkDateRollover() {
+        val today = TimeFormatter.todayKey()
+        if (_currentDateKey.value != today) {
+            _currentDateKey.value = today
+        }
+    }
+
+    fun refreshDateKey() {
+        _currentDateKey.value = TimeFormatter.todayKey()
+    }
+
+    fun splitSessionByDay(session: ScreenSession): List<ScreenSession> {
+        val startDateKey = TimeFormatter.dateKey(session.startTime)
+        val endDateKey = TimeFormatter.dateKey(session.endTime)
+        if (startDateKey == endDateKey) {
+            return listOf(session)
+        }
+
+        val result = mutableListOf<ScreenSession>()
+        var curStart = session.startTime
+        while (curStart < session.endTime) {
+            val curStartOfDay = TimeFormatter.getStartOfDay(curStart)
+            val nextDayStart = curStartOfDay + 24 * 3600_000L
+            val curEnd = minOf(session.endTime, nextDayStart)
+            val dur = (curEnd - curStart).coerceAtLeast(0L)
+            result.add(
+                ScreenSession(
+                    type = session.type,
+                    startTime = curStart,
+                    endTime = curEnd,
+                    durationMs = dur,
+                    dateKey = TimeFormatter.dateKey(curStart)
+                )
+            )
+            curStart = nextDayStart
+        }
+        return result
+    }
+
     /**
      * Called when screen state transitions (e.g. from SCREEN_OFF to SCREEN_ON or vice versa)
      */
@@ -68,23 +110,25 @@ object ScreenStateHolder {
             _lastScreenOffDuration.value = durationMs
         }
 
-        val session = ScreenSession(
+        val rawSession = ScreenSession(
             type = previousType,
             startTime = previousStartTime,
             endTime = now,
             durationMs = durationMs,
             dateKey = TimeFormatter.dateKey(previousStartTime)
         )
+        val sessionsToInsert = splitSessionByDay(rawSession)
 
         // Switch to new state
         _isScreenOn.value = newIsScreenOn
         _stateStartTime.value = now
+        refreshDateKey()
 
         // Persist session to Room in background
         scope.launch(Dispatchers.IO) {
             try {
                 val dao = AppDatabase.getInstance(context).screenSessionDao()
-                dao.insertSession(session)
+                dao.insertAll(sessionsToInsert)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -95,6 +139,7 @@ object ScreenStateHolder {
      * Initializes state from DB and preferences
      */
     fun initialize(context: Context) {
+        refreshDateKey()
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
         val isScreenCurrentlyOn = powerManager?.isInteractive ?: true
         _isScreenOn.value = isScreenCurrentlyOn
@@ -121,6 +166,7 @@ object ScreenStateHolder {
      * Synchronizes current screen state when service starts or receives system callbacks
      */
     fun syncScreenState(isCurrentlyOn: Boolean) {
+        checkDateRollover()
         if (_isScreenOn.value != isCurrentlyOn) {
             _isScreenOn.value = isCurrentlyOn
             _stateStartTime.value = System.currentTimeMillis()

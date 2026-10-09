@@ -80,6 +80,15 @@ class ScreenTrackerService : Service() {
                 Intent.ACTION_BATTERY_CHANGED -> {
                     recordBatteryPoint(intent)
                 }
+                Intent.ACTION_DATE_CHANGED,
+                Intent.ACTION_TIME_CHANGED,
+                Intent.ACTION_TIMEZONE_CHANGED -> {
+                    ScreenStateHolder.refreshDateKey()
+                    updateNotification()
+                }
+                Intent.ACTION_TIME_TICK -> {
+                    ScreenStateHolder.checkDateRollover()
+                }
             }
         }
     }
@@ -98,6 +107,10 @@ class ScreenTrackerService : Service() {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
             addAction(Intent.ACTION_BATTERY_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_TIME_TICK)
         }
         registerReceiver(screenReceiver, filter)
 
@@ -130,6 +143,7 @@ class ScreenTrackerService : Service() {
         tickerJob?.cancel()
         tickerJob = serviceScope.launch {
             while (isActive) {
+                ScreenStateHolder.checkDateRollover()
                 updateNotification()
                 val isScreenOn = ScreenStateHolder.isScreenOn.value
                 if (!isScreenOn) break

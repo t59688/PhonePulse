@@ -423,12 +423,11 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
 @Composable
 fun BatteryHealthCard(state: BatteryMonitorUiState) {
     val health = state.health
-    val points = remember(state.cycles, state.settings.calibrationRevision) {
-        state.cycles.filter {
-            it.endTime != null && it.charging && !it.excluded && (!it.socDiscontinuity || it.fullChargeMah != null) &&
-            it.calibrationRevision == state.settings.calibrationRevision && it.rejectionReason == null &&
-            it.estimatedCapacityMah?.let { value -> value.isFinite() && value > 0 } == true
-        }.sortedBy { it.startTime }
+    val consistent = health.confidence == BatteryHealthConfidence.CONSISTENT
+    val points = remember(state.cycles, state.activeCycle, state.settings.calibrationRevision) {
+        (state.cycles + listOfNotNull(state.activeCycle))
+            .mapNotNull { BatteryEstimates.healthSample(it, state.settings) }
+            .distinctBy { it.id to it.startTime }.sortedBy { it.startTime }
     }
 
     MonitorCard(
@@ -480,8 +479,9 @@ fun BatteryHealthCard(state: BatteryMonitorUiState) {
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
-                    if (health.acceptedCount >= 5) {
-                        Text("当前估算采用最近 5 次有效充电记录", color = NeonCyan, fontSize = 11.sp)
+                    if (health.acceptedCount > 0) {
+                        Text("短会话 ${health.shortSampleCount} 次 · 大跨度 ${health.referenceSampleCount} 次", color = TextSecondary, fontSize = 11.sp)
+                        Text("近期电量区间覆盖 ${health.socCoveragePct} 个百分点", color = TextSecondary, fontSize = 11.sp)
                     }
                 }
 
@@ -533,13 +533,17 @@ fun BatteryHealthCard(state: BatteryMonitorUiState) {
             )
             BentoTile(
                 label = "一致性评估",
-                value = if (health.acceptedCount >= 3 && health.spreadPct?.let { it <= 10 } == true) "一致性良好" else "采样中",
+                value = when (health.confidence) {
+                    BatteryHealthConfidence.CONSISTENT -> "样本较一致"
+                    BatteryHealthConfidence.PRELIMINARY -> "初步估算"
+                    BatteryHealthConfidence.INSUFFICIENT -> "等待样本"
+                },
                 modifier = Modifier.weight(1f),
-                icon = if (health.acceptedCount >= 3 && health.spreadPct?.let { it <= 10 } == true) Icons.Default.CheckCircle else Icons.Default.Info,
-                iconTint = if (health.acceptedCount >= 3 && health.spreadPct?.let { it <= 10 } == true) NeonEmerald else TextSecondary,
-                accentColor = if (health.acceptedCount >= 3 && health.spreadPct?.let { it <= 10 } == true) NeonEmerald else TextPrimary,
+                icon = if (consistent) Icons.Default.CheckCircle else Icons.Default.Info,
+                iconTint = if (consistent) NeonEmerald else TextSecondary,
+                accentColor = if (consistent) NeonEmerald else TextPrimary,
                 subtext = {
-                    val consistencyText = if (health.acceptedCount >= 3 && health.spreadPct?.let { it <= 10 } == true)
+                    val consistencyText = if (consistent)
                         "多次测量较一致；结果仍是估算值。"
                     else
                         "初步测量：样本较少或波动较大，请继续正常使用。"
@@ -550,9 +554,28 @@ fun BatteryHealthCard(state: BatteryMonitorUiState) {
 
         if (health.capacityMah == null) {
             MonitorCallout(
-                text = "暂无健康数据通常是有效充电样本不足，并不代表电池损坏。较大电量跨度和充分测量覆盖有助于估算。",
+                text = "单次增加至少 25 个百分点、测量覆盖至少 90% 的充电会话可参与估算；短会话需要更多样本，运行天数不等于有效样本数。",
                 icon = Icons.Default.Info,
                 tint = TextTertiary
+            )
+            state.cycles.firstOrNull { it.charging }?.let { latest ->
+                val reason = when {
+                    latest.excluded -> "已由你排除"
+                    latest.calibrationRevision != state.settings.calibrationRevision -> "校准设置已变更，需要新样本"
+                    else -> latest.rejectionReason?.let { rejectionLabel(it) }
+                }
+                if (reason != null) MonitorCallout(
+                    text = "最近充电未计入：$reason",
+                    icon = Icons.Default.Info,
+                    tint = TextTertiary
+                )
+            }
+        }
+        if (health.downWeightedCount > 0) {
+            MonitorCallout(
+                text = "${health.downWeightedCount} 次记录明显偏离其他样本，已降低其影响；样本离散度仍保留这些差异。",
+                icon = Icons.Default.Info,
+                tint = AmberWarning
             )
         }
         if (state.settings.designCapacityMah == null) {
@@ -1168,6 +1191,7 @@ private fun rejectionLabel(reason: String?): String = when (reason) {
     "CALIBRATION_CHANGED" -> "测量校准已调整，旧会话已结束"
     "INCOMPLETE_RESTORE" -> "恢复时缺少完整记录，暂不用于容量估算"
     "NO_MEASUREMENT" -> "暂无有效电荷测量，暂不用于容量估算"
+    "UNQUALIFIED_FULL_PREFIX" -> "满充时未保留合格测量，暂不用于容量估算"
     "NON_POSITIVE_CHARGE" -> "未测得有效净充入电荷，暂不用于容量估算"
     else -> "此记录不满足可靠容量估算条件"
 }

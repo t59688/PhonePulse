@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.aizeek.phonepulse.battery.*
 import com.aizeek.phonepulse.data.AppDatabase
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +28,20 @@ class BatteryMonitorRepositoryTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try { block(db, BatteryMonitorRepository(db, scope), scope) }
         finally { scope.cancel(); db.close() }
+    }
+
+    @Test fun `legacy short measurements are recovered for UI without mutating persisted history`() = withRepository { db, repo, _ ->
+        val legacy = BatteryCycle(charging = true, startTime = 0, endTime = 3_600_000,
+            lastTime = 3_600_000, lastElapsedMs = 3_600_000, startPct = 30, endPct = 60,
+            netMah = 1200.0, measuredMs = 3_600_000, rejectionReason = "SMALL_SOC_CHANGE")
+        val id = db.batteryMonitorDao().saveCycle(legacy)
+        val state = withTimeout(5000) { repo.state.first { it.health.acceptedCount == 1 } }
+        assertEquals(4000.0, state.health.capacityMah!!, 0.000001)
+        assertNull(state.cycles.single().rejectionReason)
+        assertEquals(4000.0, state.cycles.single().estimatedCapacityMah!!, 0.000001)
+        val saved = db.batteryMonitorDao().getCycle(id)!!
+        assertEquals("SMALL_SOC_CHANGE", saved.rejectionReason)
+        assertNull(saved.estimatedCapacityMah)
     }
 
     @Test fun `charge alarm is claimed once across repository restart`() = withRepository { db, repo, scope ->

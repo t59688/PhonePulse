@@ -57,6 +57,46 @@ class BatteryMonitorUiTest {
         compose.onNodeWithText("有效样本 0 次").assertIsDisplayed()
     }
 
+    @Test fun `fragmented charging estimates are explicitly preliminary`() {
+        val cycles = (1L..3L).map { id ->
+            BatteryCycle(id = id, charging = true, startTime = id * 3_600_000,
+                endTime = (id + 1) * 3_600_000, lastTime = (id + 1) * 3_600_000,
+                lastElapsedMs = (id + 1) * 3_600_000, startPct = 50, endPct = 80,
+                measuredMs = 3_600_000, netMah = 1200.0, rejectionReason = "SMALL_SOC_CHANGE")
+        }
+        val settings = BatteryMonitorSettings(designCapacityMah = 4000.0)
+        compose.setContent { PhonePulseTheme {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                BatteryHealthCard(BatteryMonitorUiState(settings = settings, cycles = cycles,
+                    health = BatteryEstimates.health(cycles, settings)))
+            }
+        } }
+        compose.onNodeWithText("有效样本 3 次").assertExists()
+        compose.onNodeWithText("短会话 3 次 · 大跨度 0 次").assertExists()
+        compose.onNodeWithText("初步估算").assertExists()
+        compose.onNodeWithText("样本较一致").assertDoesNotExist()
+    }
+
+    @Test fun `daily decline explains screen buckets and unattributed remainder`() {
+        compose.setContent { PhonePulseTheme {
+            BatteryStatsCard(LiveBatteryInfo(todayDrainKnown = true, todayTotalDrainPct = 9,
+                totalScreenOnDrainPct = 4, totalScreenOffDrainPct = 2))
+        } }
+        compose.onNodeWithText("亮屏 4 · 熄屏 2 · 未归属 3 个百分点").assertExists()
+    }
+
+    @Test fun `health explains why the latest charge was rejected`() {
+        val cycle = BatteryCycle(id = 1, charging = true, startTime = 0, endTime = 1000,
+            lastTime = 1000, lastElapsedMs = 1000, startPct = 50, endPct = 80,
+            rejectionReason = "SMALL_SOC_CHANGE")
+        compose.setContent { PhonePulseTheme {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                BatteryHealthCard(BatteryMonitorUiState(cycles = listOf(cycle)))
+            }
+        } }
+        compose.onNodeWithText("最近充电未计入：电量变化不足，需要更大充电跨度").assertExists()
+    }
+
     @Test fun `confirmed full prefix remains visible in trend after maintenance soc change`() {
         val cycle = BatteryCycle(id = 1, charging = true, startTime = 1, endTime = 2,
             lastTime = 2, lastElapsedMs = 2, startPct = 10, endPct = 99,
@@ -70,6 +110,21 @@ class BatteryMonitorUiTest {
         } }
         compose.onNodeWithText("有效样本 1 次").assertExists()
         compose.onNodeWithText("容量趋势：等待有效充电记录").assertDoesNotExist()
+        compose.onNodeWithText("按记录顺序 · 4000 → 4000 mAh").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun `confirmed full active capacity appears in trend before unplugging`() {
+        val cycle = BatteryCycle(id = 1, charging = true, startTime = 1,
+            lastTime = 2, lastElapsedMs = 2, startPct = 20, endPct = 100,
+            fullChargeMah = 3200.0, estimatedCapacityMah = 4000.0)
+        val settings = BatteryMonitorSettings(designCapacityMah = 4000.0)
+        compose.setContent { PhonePulseTheme {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                BatteryHealthCard(BatteryMonitorUiState(settings = settings, activeCycle = cycle,
+                    health = BatteryEstimates.health(listOf(cycle), settings)))
+            }
+        } }
+        compose.onNodeWithText("有效样本 1 次").assertExists()
         compose.onNodeWithText("按记录顺序 · 4000 → 4000 mAh").performScrollTo().assertIsDisplayed()
     }
 

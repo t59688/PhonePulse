@@ -11,16 +11,22 @@ object TimeFormatter {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val dateTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 
+    @Synchronized
     fun todayKey(): String = dateFormat.format(Date())
 
+    @Synchronized
     fun dateKey(timestamp: Long): String = dateFormat.format(Date(timestamp))
 
+    @Synchronized
     fun formatTime(timestamp: Long): String = timeFormat.format(Date(timestamp))
 
+    @Synchronized
     fun formatShortTime(timestamp: Long): String = shortTimeFormat.format(Date(timestamp))
 
+    @Synchronized
     fun formatDateTime(timestamp: Long): String = dateTimeFormat.format(Date(timestamp))
 
+    @Synchronized
     fun formatSampleUpdateTime(timestamp: Long): String {
         return if (dateKey(timestamp) == todayKey()) {
             "${formatShortTime(timestamp)} 更新"
@@ -114,5 +120,19 @@ object TimeFormatter {
             set(Calendar.MILLISECOND, 0)
         }
         return calendar.timeInMillis
+    }
+
+    fun getEndOfDay(timestamp: Long = System.currentTimeMillis()): Long {
+        return getStartOfDay(timestamp) + 24 * 3600 * 1000L
+    }
+
+    @Synchronized
+    fun parseDateToStartOfDay(dateKey: String): Long {
+        return try {
+            val date = dateFormat.parse(dateKey)
+            date?.time ?: getStartOfDay()
+        } catch (e: Exception) {
+            getStartOfDay()
+        }
     }
 }

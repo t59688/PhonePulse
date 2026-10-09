@@ -1,23 +1,13 @@
 package com.aizeek.phonepulse.battery
 
-import kotlin.math.sqrt
-
 object BatteryEstimates {
-    fun health(cycles: List<BatteryCycle>, settings: BatteryMonitorSettings): BatteryHealthEstimate {
-        val capacities = cycles.asSequence().filter {
-            it.endTime != null && it.charging && !it.excluded && it.rejectionReason == null &&
-                (!it.socDiscontinuity || it.fullChargeMah != null) && it.calibrationRevision == settings.calibrationRevision
-        }.sortedByDescending { it.endTime }.mapNotNull {
-            it.estimatedCapacityMah?.takeIf { capacity -> capacity.isFinite() && capacity > 0 }
-        }.take(5).toList()
-        if (capacities.isEmpty()) return BatteryHealthEstimate()
-        val mean = capacities.average()
-        val spread = if (capacities.size > 1)
-            sqrt(capacities.sumOf { (it - mean) * (it - mean) } / capacities.size) / mean * 100 else null
-        return BatteryHealthEstimate(capacityMah = mean,
-            healthPct = settings.designCapacityMah?.takeIf { it.isFinite() && it > 0 }?.let { mean / it * 100 },
-            acceptedCount = capacities.size, spreadPct = spread)
-    }
+    internal fun healthSample(cycle: BatteryCycle, settings: BatteryMonitorSettings): BatteryCycle? =
+        BatteryHealthEstimator.sample(cycle, settings)?.let {
+            cycle.copy(estimatedCapacityMah = it.capacityMah, rejectionReason = null)
+        }
+
+    fun health(cycles: List<BatteryCycle>, settings: BatteryMonitorSettings): BatteryHealthEstimate =
+        BatteryHealthEstimator.estimate(cycles, settings)
 
     fun estimate(sample: BatteryTelemetry?, active: BatteryCycle?, cycles: List<BatteryCycle>,
         intervals: List<BatteryInterval>, settings: BatteryMonitorSettings): BatteryTimeEstimates {
@@ -38,7 +28,11 @@ object BatteryEstimates {
         val usable = eligible.filter(::hasCoverage)
         // Only measured capacity supplies the mAh/% conversion; design capacity is not
         // a substitute for historical sensor data or a real accepted health session.
-        val capacity = health(cycles, settings).capacityMah
+        val health = health(cycles, settings)
+        val capacity = health.capacityMah?.takeIf {
+            health.confidence == BatteryHealthConfidence.CONSISTENT ||
+                health.referenceSampleCount > 0 && (health.spreadPct == null || health.spreadPct <= 10)
+        }
         if (sample.plugged) {
             if (active == null || !active.charging || active.socDiscontinuity) return BatteryTimeEstimates()
             // Plug presence defines a session; Android's status determines whether a

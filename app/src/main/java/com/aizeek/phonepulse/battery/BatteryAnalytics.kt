@@ -101,7 +101,9 @@ class BatteryAnalytics {
         if (old.fullChargeMah == null && fullCharge != null) {
             // Persist the qualified prefix at termination. Later idle gaps cannot invalidate
             // sensor coverage that was already complete when this capacity was measured.
-            updated = updated.copy(estimatedCapacityMah = finish(updated, "FULL_CONFIRMED").estimatedCapacityMah)
+            val prefix = finish(updated, "FULL_CONFIRMED")
+            updated = updated.copy(estimatedCapacityMah = prefix.estimatedCapacityMah,
+                rejectionReason = prefix.rejectionReason)
         }
         val interval = if (dt > 0) BatteryInterval(cycleId = old.id,
             startTime = old.lastTime, endTime = sample.timestamp, screenOn = screenOn,
@@ -155,10 +157,13 @@ class BatteryAnalytics {
             reason == "REBOOT" -> "REBOOT"
             reason == "CALIBRATION_CHANGED" -> "CALIBRATION_CHANGED"
             cycle.rejectionReason == "INCOMPLETE_RESTORE" -> "INCOMPLETE_RESTORE"
+            // Maintenance can improve cumulative coverage without repairing the frozen prefix.
+            cycle.fullChargeMah != null && reason != "FULL_CONFIRMED" ->
+                cycle.rejectionReason ?: "UNQUALIFIED_FULL_PREFIX"
             cycle.socDiscontinuity -> "SOC_DISCONTINUITY"
-            delta < 60 -> "SMALL_SOC_CHANGE"
+            delta < BatteryHealthEstimator.MIN_SOC_CHANGE -> "SMALL_SOC_CHANGE"
             cycle.measuredMs <= 0 || duration <= 0 -> "NO_MEASUREMENT"
-            cycle.measuredMs.toDouble() / duration < 0.9 -> "LOW_COVERAGE"
+            cycle.measuredMs.toDouble() / duration < BatteryHealthEstimator.MIN_COVERAGE -> "LOW_COVERAGE"
             !healthCharge.isFinite() || healthCharge <= 0 -> "NON_POSITIVE_CHARGE"
             else -> null
         }

@@ -9,19 +9,28 @@ class BatteryEstimatesTest {
     private val settings = BatteryMonitorSettings(designCapacityMah = 4000.0)
     private fun cycle(id: Long, capacity: Double = 4000.0) = BatteryCycle(id = id,
         charging = true, startTime = 0, endTime = id, lastTime = id, lastElapsedMs = id,
-        startPct = 20, endPct = 80, measuredMs = hour, estimatedCapacityMah = capacity)
+        startPct = 20, endPct = 80, measuredMs = hour, netMah = capacity * 0.6,
+        estimatedCapacityMah = capacity)
     private fun interval(start: Long, end: Long, from: Int, to: Int, screen: Boolean) =
         BatteryInterval(cycleId = 1, startTime = start, endTime = end, screenOn = screen,
             charging = false, startPct = from, endPct = to, netMah = -40.0,
             measuredMs = end - start, missingMs = 0, deepSleepMs = 0, source = "CURRENT")
 
-    @Test fun `health uses recent five accepted matching calibration and no defaults`() {
+    @Test fun `health retains accepted matching calibration and never supplies default capacity`() {
         assertNull(BatteryEstimates.health(emptyList(), settings).capacityMah)
         val health = BatteryEstimates.health((1L..6L).map { cycle(it, it * 1000.0) } +
             cycle(7).copy(excluded = true) + cycle(8).copy(calibrationRevision = 1), settings)
-        assertEquals(5, health.acceptedCount)
+        assertEquals(6, health.acceptedCount)
+        assertEquals(3500.0, health.capacityMah!!, 0.000001)
+        assertEquals(87.5, health.healthPct!!, 0.000001)
+    }
+
+    @Test fun `confirmed full capacity counts before unplugging but unfinished charge does not`() {
+        val active = cycle(2).copy(endTime = null, endPct = 100, fullChargeMah = 3200.0)
+        val health = BatteryEstimates.health(listOf(cycle(1), active), settings)
+        assertEquals(2, health.acceptedCount)
         assertEquals(4000.0, health.capacityMah!!, 0.0)
-        assertEquals(100.0, health.healthPct!!, 0.0)
+        assertEquals(1, BatteryEstimates.health(listOf(cycle(1), active.copy(fullChargeMah = null)), settings).acceptedCount)
     }
 
     @Test fun `discharge rates include plateaus and require observed change`() {

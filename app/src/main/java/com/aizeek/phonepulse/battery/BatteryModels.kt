@@ -88,11 +88,19 @@ data class BatteryAnalyticsUpdate(
     val interval: BatteryInterval? = null
 )
 
+enum class BatteryHealthConfidence { INSUFFICIENT, PRELIMINARY, CONSISTENT }
+
 data class BatteryHealthEstimate(
     val capacityMah: Double? = null,
     val healthPct: Double? = null,
     val acceptedCount: Int = 0,
-    val spreadPct: Double? = null
+    val spreadPct: Double? = null,
+    val shortSampleCount: Int = 0,
+    val referenceSampleCount: Int = 0,
+    val effectiveSampleCount: Double = 0.0,
+    val socCoveragePct: Int = 0,
+    val downWeightedCount: Int = 0,
+    val confidence: BatteryHealthConfidence = BatteryHealthConfidence.INSUFFICIENT
 )
 
 data class BatteryTimeEstimates(
