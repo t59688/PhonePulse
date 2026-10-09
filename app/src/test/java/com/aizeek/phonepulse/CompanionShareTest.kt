@@ -14,6 +14,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class CompanionShareTest {
+    @Test fun `received postcard can be shared without being an inventory item`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val letter = ForestLetter("letter:7", 7, "lake", "湖中的月亮", "今晚的湖水很安静。", 1_000, 1)
+        val file = CompanionShare.createPostcardFile(context, CompanionState(letters = listOf(letter)), letter.id)
+        val image = file.inputStream().use { BitmapFactory.decodeStream(it) }
+        assertEquals(900, image.width)
+        assertEquals(1250, image.height)
+        image.recycle()
+    }
     @Test fun `postcard renders owned accessories and is confined to the share cache`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val state = CompanionState(name = "小圆", inventory = mapOf("scarf" to 1),

@@ -37,7 +37,7 @@ class CompanionPromptsUiTest {
                 onAcknowledge = { id, level -> ack = id to level }, onOpen = { opened = it }, onShare = {})
         } }
         compose.onNodeWithText("我回来啦！").assertIsDisplayed()
-        compose.onNodeWithText("苔绿围巾").assertIsDisplayed()
+        compose.onNodeWithText("还带回了苔绿围巾").assertIsDisplayed()
         compose.onNodeWithText("去给松松试穿").performClick()
         assertEquals(8L to 1, ack)
         assertEquals("scarf", opened?.target)

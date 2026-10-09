@@ -81,7 +81,8 @@ class CompanionPersistenceTest {
             })
             repo.refresh()
             assertTrue(repo.state.value.loaded)
-            assertTrue(repo.state.value.data.inventory.isEmpty())
+            assertEquals(setOf("explorer_hat", "explorer_cape"), repo.state.value.data.inventory.keys)
+            assertTrue(repo.state.value.data.journeys.isEmpty())
             assertEquals(1L, repo.state.value.data.cursor)
         } finally { db.close() }
     }
