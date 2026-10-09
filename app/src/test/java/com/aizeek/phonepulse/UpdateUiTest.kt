@@ -14,6 +14,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.aizeek.phonepulse.ui.components.UpdateHost
 import com.aizeek.phonepulse.ui.components.UpdateEntry
 import com.aizeek.phonepulse.ui.components.UpdateDialog
+import com.aizeek.phonepulse.ui.components.CompanionCelebrationHost
+import com.aizeek.phonepulse.companion.CompanionState
+import com.aizeek.phonepulse.companion.CompanionUiState
+import com.aizeek.phonepulse.companion.Journey
 import com.aizeek.phonepulse.ui.theme.PhonePulseTheme
 import com.aizeek.phonepulse.update.GitHubRelease
 import com.aizeek.phonepulse.update.ReleaseVersion
@@ -65,6 +69,25 @@ class UpdateUiTest {
         } }
         compose.onNodeWithText("取消下载").performClick()
         assertEquals(1, cancellations)
+    }
+
+    @Test fun `automatic update defers unread companion return until dismissed`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences(UpdateRepository.PREFERENCES, Context.MODE_PRIVATE).edit().clear().commit()
+        val repository = UpdateRepository(context) { release }
+        repository.check()
+        val companion = CompanionUiState(CompanionState(inventory = mapOf("scarf" to 1),
+            journeys = listOf(Journey(8, 0, 3_600_000, 3_600_000, "scarf", "森林", "去了一趟森林"))), loaded = true)
+        compose.setContent { PhonePulseTheme {
+            val visible = UpdateHost(repository, false, {}, 0)
+            CompanionCelebrationHost(companion, { _, _ -> }, {}, {}, enabled = !visible)
+        } }
+        compose.onNodeWithTag("update_dialog").assertIsDisplayed()
+        compose.onNodeWithTag("companion_celebration").assertDoesNotExist()
+        compose.onNodeWithText("稍后").performClick()
+        compose.onNodeWithTag("update_dialog").assertDoesNotExist()
+        compose.onNodeWithText("我回来啦！").assertIsDisplayed()
+        Unit
     }
 
     @Test fun `verified update offers system installation`() {

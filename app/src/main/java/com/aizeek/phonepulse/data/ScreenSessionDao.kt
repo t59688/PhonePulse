@@ -8,6 +8,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ScreenSessionDao {
+    @Query("SELECT MAX(id) FROM screen_sessions")
+    fun observeLatestSessionId(): Flow<Long?>
+
+    @Query("SELECT MAX(id) FROM screen_sessions")
+    suspend fun getLatestSessionIdSync(): Long?
+
+    @Query("SELECT * FROM screen_sessions WHERE id > :cursor ORDER BY startTime ASC, id ASC")
+    suspend fun getSessionsAfter(cursor: Long): List<ScreenSession>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: ScreenSession): Long
 

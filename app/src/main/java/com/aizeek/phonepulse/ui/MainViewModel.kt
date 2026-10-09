@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
@@ -36,6 +37,50 @@ import com.aizeek.phonepulse.battery.BatteryChargeAlarm
 import kotlinx.coroutines.CancellationException
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val companionDao = com.aizeek.phonepulse.data.AppDatabase.getInstance(application).screenSessionDao()
+    private val companionRepository = com.aizeek.phonepulse.companion.CompanionRepository(
+        companionDao, com.aizeek.phonepulse.companion.PreferencesCompanionStore(application))
+    val companion = companionRepository.state
+
+    // Collected only while the activity is resumed; Room invalidation handles the screen-event write race.
+    suspend fun observeCompanion() {
+        combine(companionDao.observeLatestSessionId(), ScreenStateHolder.currentDateKey) { id, day -> id to day }
+            .collect { companionRepository.refresh() }
+    }
+    fun refreshCompanion() = viewModelScope.launch { companionRepository.refresh() }
+    fun equipCompanion(id: String) = viewModelScope.launch { companionRepository.equip(id) }
+    fun visitCompanion() = viewModelScope.launch { companionRepository.visit() }
+    fun acknowledgeCompanion(id: Long, level: Int) = viewModelScope.launch { companionRepository.acknowledge(id, level) }
+    fun showcaseCompanion(id: String) = viewModelScope.launch { companionRepository.showcase(id) }
+    fun claimCompanionTask(id: String) = viewModelScope.launch { companionRepository.claim(id) }
+    fun renameCompanion(name: String) = viewModelScope.launch { companionRepository.rename(name) }
+    fun confirmCompanionJourney(id: Long, label: String) = viewModelScope.launch { companionRepository.confirm(id, label) }
+
+    private var companionObservationJob: Job? = null
+    fun cancelCompanionObservation() { companionObservationJob?.cancel() }
+    fun observeTodayForCompanion(): Job {
+        companionObservationJob?.takeIf { it.isActive }?.let { return it }
+        return viewModelScope.launch {
+            companionRepository.observation(null, loading = true)
+            try {
+                val now = System.currentTimeMillis()
+                val access = usageRepo.hasUsageStatsPermission()
+                val sessions = companionDao.getSessionsForDate(com.aizeek.phonepulse.util.TimeFormatter.dateKey(now)).first()
+                val apps = if (access) usageRepo.getAppUsageStats(UsagePeriod.TODAY) else emptyList()
+                val top = apps
+                    .filter { it.packageName != getApplication<Application>().packageName }
+                    .maxByOrNull { it.totalTimeInForegroundMs }
+                companionRepository.observation(com.aizeek.phonepulse.companion.CompanionInsights.describe(sessions, top, now, access))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                android.util.Log.e("Companion", "Usage observation failed", e)
+                companionRepository.observation("今天的应用记录暂时读不到，请稍后再试。")
+            } finally {
+                companionRepository.observation(companion.value.observation, loading = false)
+            }
+        }.also { companionObservationJob = it }
+    }
 
     private val screenRepo = ScreenStateRepository(application)
     private val usageRepo = UsageStatsRepository(application)

@@ -36,6 +36,9 @@ import com.aizeek.phonepulse.data.ScreenSession
 import com.aizeek.phonepulse.ui.components.ActivityBarChart
 import com.aizeek.phonepulse.ui.components.BentoStatCards
 import com.aizeek.phonepulse.ui.components.LivePulseHeroCard
+import com.aizeek.phonepulse.ui.components.CompanionHomeEntry
+import com.aizeek.phonepulse.companion.CompanionUiState
+import com.aizeek.phonepulse.companion.CompanionPrompt
 import com.aizeek.phonepulse.ui.theme.BorderDark
 import com.aizeek.phonepulse.ui.theme.ElectricViolet
 import com.aizeek.phonepulse.ui.theme.NeonCyan
@@ -58,7 +61,10 @@ fun OverviewScreen(
     hourlyStats: List<HourlyScreenStat>,
     recentSessions: List<ScreenSession>,
     onNavigateToHistory: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    companion: CompanionUiState? = null,
+    onNavigateToCompanion: () -> Unit = {},
+    onCompanionAction: (CompanionPrompt) -> Unit = { onNavigateToCompanion() }
 ) {
     LazyColumn(
         modifier = modifier
@@ -74,6 +80,10 @@ fun OverviewScreen(
                 startTimeMs = stateStartTimeMs,
                 isServiceRunning = isServiceRunning
             )
+        }
+
+        if (companion != null) item {
+            CompanionHomeEntry(companion, onNavigateToCompanion, serviceRunning = isServiceRunning, onAction = onCompanionAction)
         }
 
         item {

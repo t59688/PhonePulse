@@ -74,7 +74,7 @@ fun UpdateEntry(repository: UpdateRepository, onClick: () -> Unit) {
 }
 
 @Composable
-fun UpdateHost(repository: UpdateRepository, showDialog: Boolean, onClose: () -> Unit, openRequest: Int) {
+fun UpdateHost(repository: UpdateRepository, showDialog: Boolean, onClose: () -> Unit, openRequest: Int): Boolean {
     val state by repository.state.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -157,7 +157,8 @@ fun UpdateHost(repository: UpdateRepository, showDialog: Boolean, onClose: () ->
             lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) requestInstall()
     }
 
-    if (showDialog || automaticDialog) {
+    val visible = showDialog || automaticDialog
+    if (visible) {
         UpdateDialog(
             state = state,
             notificationsAllowed = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context,
@@ -175,6 +176,7 @@ fun UpdateHost(repository: UpdateRepository, showDialog: Boolean, onClose: () ->
             onInstall = { requestInstall() }
         )
     }
+    return visible
 }
 
 @Composable

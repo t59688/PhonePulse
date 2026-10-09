@@ -25,16 +25,29 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import com.aizeek.phonepulse.companion.CompanionShare
+import com.aizeek.phonepulse.companion.CompanionState
+import com.aizeek.phonepulse.companion.CompanionPrompt
+import com.aizeek.phonepulse.companion.PromptAction
+import com.aizeek.phonepulse.ui.components.CompanionCelebrationHost
+import com.aizeek.phonepulse.ui.screens.CompanionScreen
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,17 +99,58 @@ fun MainScreen(
     updateOpenRequest: Int = 0
 ) {
     var showUpdates by rememberSaveable { mutableStateOf(false) }
-    UpdateHost(viewModel.updates, showUpdates, onClose = { showUpdates = false }, openRequest = updateOpenRequest)
+    val updateDialogVisible = UpdateHost(viewModel.updates, showUpdates, onClose = { showUpdates = false }, openRequest = updateOpenRequest)
     val context = LocalContext.current
     var currentTab by remember { mutableStateOf(ScreenTab.OVERVIEW) }
+    var showCompanion by rememberSaveable { mutableStateOf(false) }
+    var companionPage by rememberSaveable { mutableStateOf(0) }
+    var companionItem by rememberSaveable { mutableStateOf<String?>(null) }
+    var companionOpenRequest by rememberSaveable { mutableStateOf(0) }
+    var companionHasModal by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf(false) }
+    var shareError by remember { mutableStateOf<String?>(null) }
+    var shareJob by remember { mutableStateOf<Job?>(null) }
+    val shareScope = rememberCoroutineScope()
+    val feedbackHost = remember { SnackbarHostState() }
+    var feedbackBaseline by remember { mutableStateOf<CompanionState?>(null) }
+    val companion by viewModel.companion.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+
+    LaunchedEffect(companion.loaded, companion.data) {
+        if (companion.loaded) {
+            val previous = feedbackBaseline
+            val data = companion.data
+            feedbackBaseline = data
+            if (previous != null) {
+                val message = when {
+                    data.taskDay == previous.taskDay && (data.claimedTasks - previous.claimedTasks).isNotEmpty() ->
+                        "成长 +${data.growth - previous.growth}"
+                    data.equipped != previous.equipped -> "装扮已更新"
+                    data.showcase.size > previous.showcase.size -> "已加入展示柜"
+                    else -> null
+                }
+                if (message != null) shareScope.launch { feedbackHost.showSnackbar(message) }
+            }
+        }
+    }
+    LaunchedEffect(shareError) { shareError?.let { feedbackHost.showSnackbar(it) } }
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.observeCompanion()
+        }
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 com.aizeek.phonepulse.service.ScreenStateHolder.refreshDateKey()
                 viewModel.refreshPermissions()
                 viewModel.refreshHourlyStats()
+            }
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                viewModel.cancelCompanionObservation()
+                shareJob?.cancel()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -130,7 +184,57 @@ fun MainScreen(
     val hasNotificationPermission by viewModel.hasNotificationPermission.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
     val updateState by viewModel.updates.state.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
 
+    val shareCompanion: (String?) -> Unit = { itemId ->
+        if (!sharing) shareJob = shareScope.launch {
+            sharing = true; shareError = null
+            try {
+                val intent = CompanionShare.postcard(context, companion.data, itemId)
+                context.startActivity(android.content.Intent.createChooser(intent, "分享森林明信片"))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                android.util.Log.e("Companion", "Postcard share failed", e)
+                shareError = "明信片暂时无法分享，请重试。"
+            } finally { sharing = false }
+        }
+    }
+    val openCompanion: (CompanionPrompt) -> Unit = { prompt ->
+        when (prompt.action) {
+            PromptAction.START_TRACKING -> viewModel.toggleService(true)
+            PromptAction.CLAIM_TASK -> prompt.target?.let { viewModel.claimCompanionTask(it) }
+            else -> {
+                companionPage = when (prompt.action) { PromptAction.OPEN_ITEMS -> 1; PromptAction.OPEN_JOURNAL -> 2; else -> 0 }
+                companionItem = if (prompt.action == PromptAction.OPEN_ITEMS) prompt.target else null
+                if (prompt.key.startsWith("return:") || prompt.key.startsWith("level:"))
+                    viewModel.acknowledgeCompanion(companion.data.journeys.firstOrNull()?.id ?: 0, companion.data.level)
+                viewModel.visitCompanion()
+                companionOpenRequest++
+                showCompanion = true
+            }
+        }
+    }
+    CompanionCelebrationHost(companion,
+        onAcknowledge = { id, level -> viewModel.acknowledgeCompanion(id, level) },
+        onOpen = openCompanion, onShare = shareCompanion,
+        enabled = lifecycleState == Lifecycle.State.RESUMED && !updateDialogVisible && !companionHasModal && (showCompanion || currentTab == ScreenTab.OVERVIEW),
+        sharing = sharing, shareError = shareError)
+
+    if (showCompanion) {
+        val battery by viewModel.liveBattery.collectAsStateWithLifecycle(minActiveState = Lifecycle.State.RESUMED)
+        CompanionScreen(companion, battery, isServiceRunning,
+            onBack = { viewModel.cancelCompanionObservation(); shareJob?.cancel(); companionHasModal = false; showCompanion = false }, onEquip = { viewModel.equipCompanion(it) },
+            onShowcase = { viewModel.showcaseCompanion(it) }, onClaim = { viewModel.claimCompanionTask(it) },
+            onRename = { viewModel.renameCompanion(it) }, onConfirm = { id, label -> viewModel.confirmCompanionJourney(id, label) },
+            onObserve = { viewModel.observeTodayForCompanion() }, onRetry = { viewModel.refreshCompanion() },
+            sharing = sharing, shareError = shareError,
+            initialPage = companionPage, initialItem = companionItem, feedbackHost = feedbackHost,
+            openRequest = companionOpenRequest, onModalVisibility = { companionHasModal = it },
+            onStartTracking = { viewModel.toggleService(true) },
+            onShare = shareCompanion)
+        return
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(feedbackHost) },
         topBar = {
             TopAppBar(
                 title = {
@@ -240,7 +344,10 @@ fun MainScreen(
                             todayWakeCount = todayWakeCount,
                             hourlyStats = hourlyStats,
                             recentSessions = recentSessions,
-                            onNavigateToHistory = { currentTab = ScreenTab.HISTORY }
+                            onNavigateToHistory = { currentTab = ScreenTab.HISTORY },
+                            companion = companion,
+                            onNavigateToCompanion = { companionPage = 0; companionItem = null; viewModel.visitCompanion(); showCompanion = true },
+                            onCompanionAction = openCompanion
                         )
                     }
                     ScreenTab.APP_USAGE -> {

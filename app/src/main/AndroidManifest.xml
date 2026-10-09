@@ -46,6 +46,14 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_file_paths" />
         </provider>
 
+        <provider
+            android:name=".companion.CompanionFileProvider"
+            android:authorities="${applicationId}.companion"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/companion_file_paths" />
+        </provider>
+
         <receiver android:name=".update.UpdateDownloadReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
