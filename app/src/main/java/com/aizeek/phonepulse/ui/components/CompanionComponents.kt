@@ -37,9 +37,27 @@ val ForestGold = Color(0xFFE8C78F)
 
 @Composable
 fun PetScene(state: CompanionState, modifier: Modifier = Modifier, sleepy: Boolean = false,
-             charging: Boolean = false, greeting: Boolean = false) {
+             charging: Boolean = false, greeting: Boolean = false, interior: Boolean = false) {
     Canvas(modifier.semantics { contentDescription = "${state.name}的森林小窝" }) {
-        drawIntoCanvas { CompanionArtwork.scene(it.nativeCanvas, size.width, size.height, state, sleepy, charging, greeting) }
+        drawIntoCanvas { ForestArtwork.home(it.nativeCanvas, size.width, size.height, state, interior) }
+    }
+}
+
+@Composable
+fun SceneryArtwork(letter: ForestLetter, modifier: Modifier = Modifier) {
+    Canvas(modifier.semantics { contentDescription = letter.title }) {
+        drawIntoCanvas { ForestArtwork.scenery(it.nativeCanvas, size.width, size.height, letter.placeId, letter.artwork) }
+    }
+}
+
+@Composable
+fun FriendArtwork(id: String, modifier: Modifier = Modifier) {
+    Canvas(modifier.semantics { contentDescription = ForestWorld.friend(id)?.name.orEmpty() }) {
+        drawIntoCanvas {
+            val canvas = it.nativeCanvas
+            canvas.save(); canvas.translate((size.width - minOf(size.width, size.height)) / 2, 0f)
+            ForestArtwork.friend(canvas, id, scale = minOf(size.width, size.height) / 80f); canvas.restore()
+        }
     }
 }
 

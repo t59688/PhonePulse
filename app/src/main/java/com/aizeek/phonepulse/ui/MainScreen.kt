@@ -125,6 +125,10 @@ fun MainScreen(
                     data.taskDay == previous.taskDay && (data.claimedTasks - previous.claimedTasks).isNotEmpty() ->
                         "成长 +${data.growth - previous.growth}"
                     data.equipped != previous.equipped -> "装扮已更新"
+                    data.home.stage != previous.home.stage -> "${data.home.stage.title}搭好了"
+                    data.home.furniture != previous.home.furniture -> "家里的布置已更新"
+                    data.home.wallPicture != previous.home.wallPicture -> "风景已挂进木屋"
+                    data.home.roof != previous.home.roof -> "屋顶颜色已更新"
                     data.showcase.size > previous.showcase.size -> "已加入展示柜"
                     else -> null
                 }
@@ -202,7 +206,7 @@ fun MainScreen(
             PromptAction.START_TRACKING -> viewModel.toggleService(true)
             PromptAction.CLAIM_TASK -> prompt.target?.let { viewModel.claimCompanionTask(it) }
             else -> {
-                companionPage = when (prompt.action) { PromptAction.OPEN_ITEMS -> 1; PromptAction.OPEN_JOURNAL -> 2; else -> 0 }
+                companionPage = when (prompt.action) { PromptAction.OPEN_ITEMS -> 2; PromptAction.OPEN_JOURNAL -> 1; else -> 0 }
                 companionItem = if (prompt.action == PromptAction.OPEN_ITEMS) prompt.target else null
                 if (prompt.key.startsWith("return:") || prompt.key.startsWith("level:"))
                     viewModel.acknowledgeCompanion(companion.data.journeys.firstOrNull()?.id ?: 0, companion.data.level)
@@ -228,6 +232,11 @@ fun MainScreen(
             sharing = sharing, shareError = shareError,
             initialPage = companionPage, initialItem = companionItem, feedbackHost = feedbackHost,
             openRequest = companionOpenRequest, onModalVisibility = { companionHasModal = it },
+            onBuild = { viewModel.buildCompanionHome(it) },
+            onPlace = { id, slot -> viewModel.placeCompanionItem(id, slot) },
+            onRemoveFurniture = { viewModel.removeCompanionFurniture(it) },
+            onReadLetter = { viewModel.readCompanionLetter(it) }, onFrame = { viewModel.frameCompanionLetter(it) },
+            onRoof = { viewModel.colorCompanionRoof(it) },
             onStartTracking = { viewModel.toggleService(true) },
             onShare = shareCompanion)
         return

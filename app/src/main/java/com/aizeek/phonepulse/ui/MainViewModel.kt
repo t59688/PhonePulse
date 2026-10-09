@@ -50,6 +50,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun refreshCompanion() = viewModelScope.launch { companionRepository.refresh() }
     fun equipCompanion(id: String) = viewModelScope.launch { companionRepository.equip(id) }
+    fun buildCompanionHome(stage: com.aizeek.phonepulse.companion.HomeStage) = viewModelScope.launch { companionRepository.build(stage) }
+    fun placeCompanionItem(id: String, slot: com.aizeek.phonepulse.companion.HomeSlot) = viewModelScope.launch { companionRepository.place(id, slot) }
+    fun removeCompanionFurniture(slot: com.aizeek.phonepulse.companion.HomeSlot) = viewModelScope.launch { companionRepository.removeFurniture(slot) }
+    fun readCompanionLetter(id: String) = viewModelScope.launch { companionRepository.readLetter(id) }
+    fun frameCompanionLetter(id: String) = viewModelScope.launch { companionRepository.frame(id) }
+    fun colorCompanionRoof(color: String) = viewModelScope.launch { companionRepository.roof(color) }
     fun visitCompanion() = viewModelScope.launch { companionRepository.visit() }
     fun acknowledgeCompanion(id: Long, level: Int) = viewModelScope.launch { companionRepository.acknowledge(id, level) }
     fun showcaseCompanion(id: String) = viewModelScope.launch { companionRepository.showcase(id) }

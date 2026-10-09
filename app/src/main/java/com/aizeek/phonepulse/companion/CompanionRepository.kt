@@ -18,7 +18,9 @@ class CompanionRepository(private val dao: ScreenSessionDao, private val store: 
     suspend fun refresh() = action {
         val now = System.currentTimeMillis()
         val previous = if (mutable.value.loaded) mutable.value.data else store.read()
-            ?: CompanionState(joinedAt = now, cursor = dao.getLatestSessionIdSync() ?: 0L)
+            ?: CompanionState(joinedAt = now, cursor = dao.getLatestSessionIdSync() ?: 0L,
+                inventory = mapOf("explorer_hat" to 1, "explorer_cape" to 1),
+                equipped = mapOf("HAT" to "explorer_hat", "CAPE" to "explorer_cape"))
         val settled = CompanionRules.settle(previous, dao.getSessionsAfter(previous.cursor), now)
         val today = CompanionRules.day(now)
         val next = if (settled.taskDay == today) settled else settled.copy(
@@ -28,6 +30,19 @@ class CompanionRepository(private val dao: ScreenSessionDao, private val store: 
     }
 
     suspend fun equip(id: String) = update { CompanionRules.equip(it, id) }
+    suspend fun build(expectedStage: HomeStage) = update { state ->
+        if (state.home.stage != expectedStage) return@update state
+        check(ForestHome.canBuild(state.home)) { "材料还不够，等下一次旅行带回来吧。" }
+        state.copy(home = ForestHome.build(state.home))
+    }
+    suspend fun place(id: String, slot: HomeSlot) = update { ForestHome.place(it, id, slot) }
+    suspend fun removeFurniture(slot: HomeSlot) = update { it.copy(home = it.home.copy(furniture = it.home.furniture - slot.name)) }
+    suspend fun readLetter(id: String) = update { it.copy(letters = it.letters.map { letter -> if (letter.id == id) letter.copy(read = true) else letter }) }
+    suspend fun frame(id: String) = update { ForestHome.frame(it, id) }
+    suspend fun roof(color: String) = update {
+        require(color in listOf("terracotta", "moss", "slate"))
+        it.copy(home = it.home.copy(roof = color))
+    }
     suspend fun visit() = update { it.copy(visited = true) }
     suspend fun acknowledge(journeyId: Long, level: Int) = update { CompanionPrompts.acknowledge(it, journeyId, level) }
     suspend fun showcase(id: String) = update { CompanionRules.toggleShowcase(it, id) }

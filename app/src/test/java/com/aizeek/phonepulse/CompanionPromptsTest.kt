@@ -17,13 +17,12 @@ class CompanionPromptsTest {
         assertNotEquals("return:8", CompanionPrompts.home(read, true, now).key)
     }
 
-    @Test fun `claimable task has a direct growth action`() {
-        val state = CompanionState(visited = true, taskDay = CompanionRules.day(now), longestRestMs = 70 * 60_000)
+    @Test fun `construction is offered instead of daily growth claims`() {
+        val state = CompanionState(visited = true, home = HomeState(wood = 2, stone = 1, fiber = 1))
         val prompt = CompanionPrompts.home(state, true, now)
-        assertEquals(PromptAction.CLAIM_TASK, prompt.action)
-        assertEquals("rest60", prompt.target)
-        val claimed = CompanionRules.claimTask(state, "rest60", now)
-        assertEquals("rest20", CompanionPrompts.home(claimed, true, now).target)
+        assertEquals(PromptAction.OPEN_HOME, prompt.action)
+        assertEquals("build:CLEARING", prompt.key)
+        assertNotEquals(PromptAction.CLAIM_TASK, prompt.action)
     }
 
     @Test fun `onboarding tracking dress up and sharing prompts match actual state`() {
@@ -32,12 +31,12 @@ class CompanionPromptsTest {
         val owned = CompanionState(visited = true, inventory = mapOf("scarf" to 1))
         assertEquals("dress:scarf", CompanionPrompts.home(owned, true, now).key)
         val dressed = CompanionRules.equip(owned, "scarf")
-        assertEquals("showcase", CompanionPrompts.home(dressed, true, now).key)
+        assertEquals("company", CompanionPrompts.home(dressed, true, now).key)
     }
 
-    @Test fun `level celebration is acknowledged without consuming a newer return`() {
+    @Test fun `acknowledging an old return never consumes a newer return`() {
         val state = CompanionState(growth = 110, seenLevel = 1, journeys = listOf(trip), seenJourneyId = 8)
-        assertEquals(2, CompanionPrompts.celebration(state)?.level)
+        assertNull(CompanionPrompts.celebration(state))
         val read = CompanionPrompts.acknowledge(state, 8, 2)
         assertNull(CompanionPrompts.celebration(read))
         val newer = read.copy(journeys = listOf(trip.copy(id = 9)))
@@ -45,7 +44,9 @@ class CompanionPromptsTest {
         assertEquals(8L, CompanionPrompts.acknowledge(newer, 8, 2).seenJourneyId)
     }
 
-    @Test fun `no reward trip does not repeatedly summon a celebration sheet`() {
-        assertNull(CompanionPrompts.celebration(CompanionState(journeys = listOf(trip.copy(itemId = null)))))
+    @Test fun `a story without an item still returns once and stays acknowledged`() {
+        val state = CompanionState(journeys = listOf(trip.copy(itemId = null)))
+        assertNotNull(CompanionPrompts.celebration(state))
+        assertNull(CompanionPrompts.celebration(CompanionPrompts.acknowledge(state, 8, 1)))
     }
 }

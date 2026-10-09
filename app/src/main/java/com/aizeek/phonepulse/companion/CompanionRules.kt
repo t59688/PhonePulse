@@ -61,13 +61,27 @@ object CompanionRules {
                 rarityRoll < chance -> Rarity.RARE
                 else -> Rarity.COMMON
             }
-            val pool = CompanionCatalog.items.filter { it.rarity == rarity }
+            val pool = CompanionCatalog.items.filter { it.rarity == rarity && !it.id.startsWith("explorer_") }
             val item = if (count < DAILY_REWARDS) pool[random.nextInt(pool.size)] else null
+            val (destination, event) = ForestWorld.choose(result, session.durationMs / 60_000, random)
+            val letter = ForestWorld.letter(session.id, destination, event, session.endTime)
+            val friends = ForestWorld.meet(result, destination, session.id, session.endTime)
+            val home = ForestHome.gather(result.home, session.durationMs / 60_000, date)
+            val rewards = buildList {
+                add(JourneyReward(RewardKind.STORY, "${destination.id}:$event", "路上的趣闻"))
+                add(JourneyReward(RewardKind.POSTCARD, letter.id, letter.title))
+                add(JourneyReward(RewardKind.SCENERY, letter.id, destination.name))
+                item?.let { add(JourneyReward(RewardKind.ITEM, it.id, it.name)) }
+                add(JourneyReward(RewardKind.FRIEND, destination.friendId, ForestWorld.friend(destination.friendId)!!.name))
+                if (home != result.home) add(JourneyReward(RewardKind.MATERIAL, session.id.toString(), "建家的木料与石材"))
+            }
             result = result.copy(
                 inventory = if (item == null) result.inventory else result.inventory +
                     (item.id to ((result.inventory[item.id] ?: 0) + 1)),
                 journeys = (listOf(Journey(session.id, session.startTime, session.endTime, session.durationMs,
-                    item?.id, place(session.durationMs), guess(session.startTime, session.durationMs))) + result.journeys).take(60),
+                    item?.id, destination.name, destination.events[event], rewards = rewards,
+                    eventId = "${destination.id}:$event", friendId = destination.friendId)) + result.journeys).take(60),
+                home = home, letters = result.letters + letter, friends = friends,
                 growth = result.growth + if (item != null) 10 else 0,
                 totalJourneys = result.totalJourneys + 1, totalRestMs = result.totalRestMs + session.durationMs,
                 rewardDay = date, rewardCount = count + if (item != null) 1 else 0,

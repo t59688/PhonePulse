@@ -9,9 +9,8 @@ data class CompanionCelebration(val journey: Journey?, val level: Int, val level
 
 object CompanionPrompts {
     fun celebration(state: CompanionState): CompanionCelebration? {
-        val latest = state.journeys.firstOrNull()?.takeIf { it.id > state.seenJourneyId && it.itemId != null }
-        val levelUp = state.level > state.seenLevel
-        return if (latest != null || levelUp) CompanionCelebration(latest, state.level, levelUp) else null
+        val latest = state.journeys.firstOrNull()?.takeIf { it.id > state.seenJourneyId }
+        return latest?.let { CompanionCelebration(it, state.level, false) }
     }
 
     fun acknowledge(state: CompanionState, journeyId: Long, level: Int) = state.copy(
@@ -21,35 +20,23 @@ object CompanionPrompts {
     fun home(state: CompanionState, serviceRunning: Boolean, now: Long): CompanionPrompt {
         val latest = state.journeys.firstOrNull()
         if (latest != null && latest.id > state.seenJourneyId) {
-            val item = CompanionCatalog.find(latest.itemId)
             return CompanionPrompt("return:${latest.id}", "探险归来", "${state.name}回来了！",
-                item?.let { "我带回了「${it.name}」，要一起看看吗？" } ?: "这次带回一段森林见闻，想讲给你听。",
-                if (item == null) "听听旅途故事" else "看看这次的礼物",
-                if (item == null) PromptAction.OPEN_JOURNAL else PromptAction.OPEN_ITEMS, item?.id)
-        }
-        if (state.level > state.seenLevel) return CompanionPrompt("level:${state.level}", "成长时刻",
-            "我们又更熟悉一点了", "Lv. ${state.level}",
-            "看看伙伴的成长", PromptAction.OPEN_HOME)
-        if (state.taskDay == CompanionRules.day(now)) {
-            val task = listOf("rest60" to 60, "rest20" to 20).firstOrNull {
-                it.first !in state.claimedTasks && state.longestRestMs >= it.second * 60_000L
-            }
-            if (task != null) return CompanionPrompt("task:${state.taskDay}:${task.first}", "成长可领取",
-            "休息任务完成啦", "成长 +15",
-                "领取成长 +15", PromptAction.CLAIM_TASK, task.first)
+                "从${latest.place}带回了故事，还有写给你的信。", "看看路上的惊喜", PromptAction.OPEN_JOURNAL)
         }
         if (!serviceRunning) return CompanionPrompt("tracking", "等你出发", "${state.name}正在等你",
             "一起出发吧。", "开启记录", PromptAction.START_TRACKING)
         if (!state.visited) return CompanionPrompt("welcome", "初次见面", "你好，我是${state.name}",
-            "很高兴见到你。", "认识你的伙伴", PromptAction.OPEN_HOME)
+            "一起在森林里，慢慢建一个家吧。", "认识你的伙伴", PromptAction.OPEN_HOME)
+        if (ForestHome.canBuild(state.home)) return CompanionPrompt("build:${state.home.stage.name}", "建家的新一步",
+            "材料攒够啦", ForestHome.next(state.home)!!.invitation, "回家搭起来", PromptAction.OPEN_HOME)
         val wearable = CompanionCatalog.items.firstOrNull {
-            it.kind != ItemKind.TREASURE && (state.inventory[it.id] ?: 0) > 0 && state.equipped[it.kind.name] == null
+            it.kind !in listOf(ItemKind.TREASURE, ItemKind.HOME) && (state.inventory[it.id] ?: 0) > 0 && state.equipped[it.kind.name] == null
         }
         if (wearable != null) return CompanionPrompt("dress:${wearable.id}", "试试新装扮", "给旅途换个新模样",
             "试试「${wearable.name}」？",
             if (wearable.kind == ItemKind.HOME) "布置我的小窝" else "给伙伴试穿", PromptAction.OPEN_ITEMS, wearable.id)
-        if (state.ownedCount > 0 && state.showcase.isEmpty()) return CompanionPrompt("showcase", "分享旅行印记",
-            "把喜欢的收获摆出来", "这份风景，想和朋友分享。", "挑选收藏", PromptAction.OPEN_ITEMS)
+        if (state.letters.any { !it.read }) return CompanionPrompt("mailbox", "森林来信",
+            "有一封信在等你", "不着急，等你有空再拆开。", "看看来信", PromptAction.OPEN_JOURNAL)
         val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
         val greeting = when (hour) {
             in 5..10 -> "早上好，今天也陪着你" to "今天想去哪里？"

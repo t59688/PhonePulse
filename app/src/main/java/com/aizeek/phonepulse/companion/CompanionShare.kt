@@ -8,6 +8,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,7 +30,8 @@ object CompanionShare {
 
     suspend fun createPostcardFile(context: Context, state: CompanionState, itemId: String? = null): File = withContext(Dispatchers.IO) {
         val selected = CompanionCatalog.find(itemId)
-        require(itemId == null || selected != null && (state.inventory[itemId] ?: 0) > 0) { "只能分享已获得的物品" }
+        val letter = state.letters.firstOrNull { it.id == itemId }
+        require(itemId == null || letter != null || selected != null && (state.inventory[itemId] ?: 0) > 0) { "只能分享已获得的物品或明信片" }
         val bitmap = Bitmap.createBitmap(900, 1250, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bitmap)
@@ -41,24 +45,23 @@ object CompanionShare {
             val cream = Color.rgb(242, 232, 216); val muted = Color.rgb(173, 189, 185)
             val sage = Color.rgb(182, 211, 179)
             text("PHONEPULSE  /  FOREST POSTCARD", 60f, 75f, 21f, sage)
-            text("${state.name}的森林小窝", 60f, 148f, 44f, cream, true)
-            canvas.save(); canvas.translate(0f, 230f)
-            CompanionArtwork.scene(canvas, 900f, 590f, state)
+            text(letter?.title ?: "${state.name}的森林小窝", 60f, 148f, 44f, cream, true)
+            canvas.save(); canvas.translate(60f, 195f)
+            if (letter != null) ForestArtwork.scenery(canvas, 780f, 468f, letter.placeId, letter.artwork)
+            else ForestArtwork.home(canvas, 780f, 819f, state)
             canvas.restore()
-            text("Lv. ${state.level}    ·    ${state.totalJourneys} 次远行    ·    ${state.ownedCount} 种收藏", 60f, 865f, 25f, sage)
-            val display = if (selected != null) listOf(selected.id) else state.showcase.take(6)
-            if (selected != null) {
-                canvas.save(); canvas.translate(55f, 915f); CompanionArtwork.item(canvas, selected.id, 110f); canvas.restore()
-                text(selected.name, 194f, 958f, 30f, cream, true)
-                text("${selected.rarity.label} · ${selected.kind.label}", 194f, 1004f, 22f, sage)
-            } else if (display.isEmpty()) {
-                text("暂无收藏", 60f, 965f, 28f, cream)
+            if (letter != null) {
+                val paragraph = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = cream; textSize = 32f }
+                val layout = StaticLayout.Builder.obtain(letter.message, 0, letter.message.length, paragraph, 760)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL).setLineSpacing(14f, 1f).build()
+                canvas.save(); canvas.translate(70f, 726f); layout.draw(canvas); canvas.restore()
+                text("${state.name}  /  ${ForestWorld.place(letter.placeId).name}", 70f, 1090f, 25f, sage)
             } else {
-                display.forEachIndexed { index, id ->
-                    val x = 60f + index * 130f
-                    canvas.save(); canvas.translate(x, 927f); CompanionArtwork.item(canvas, id, 95f); canvas.restore()
-                    text(CompanionCatalog.find(id)?.name.orEmpty(), x, 1060f, 16f, muted)
-                }
+                text("${state.home.stage.title}    ·    ${state.totalJourneys} 次远行", 60f, 1068f, 26f, sage)
+                if (selected != null) {
+                    canvas.save(); canvas.translate(60f, 1090f); CompanionArtwork.item(canvas, selected.id, 75f); canvas.restore()
+                    text(selected.name, 155f, 1140f, 28f, cream, true)
+                } else text("你去生活，我去看看森林。", 60f, 1130f, 27f, cream)
             }
             text("PhonePulse", 60f, 1200f, 19f, muted)
             val directory = File(context.cacheDir, "companion_share").apply { check(isDirectory || mkdirs()) }
