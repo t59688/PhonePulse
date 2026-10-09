@@ -189,8 +189,6 @@ fun BatteryLevelChart(records: List<BatteryRecord>, modifier: Modifier = Modifie
                 }
                 if (records.size == 1) {
                     Text("仅有一个采样点，继续记录后显示变化曲线", color = TextTertiary, fontSize = 11.sp)
-                } else {
-                    Text("采样点连线，点之间未连续测量", color = TextTertiary, fontSize = 11.sp)
                 }
             }
         }

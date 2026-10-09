@@ -202,8 +202,8 @@ fun UpdateDialog(
                     Text("安装包 ${formatBytes(state.release.size)}", color = TextSecondary)
                 }
                 Text(when (state.phase) {
-                    UpdatePhase.IDLE -> "自动检测间隔为 6 小时，也可手动检查"
-                    UpdatePhase.CHECKING -> "正在从 GitHub 检查更新…"
+                    UpdatePhase.IDLE -> "待检查更新"
+                    UpdatePhase.CHECKING -> "正在检查更新…"
                     UpdatePhase.AVAILABLE -> "是否下载并安装此更新？"
                     UpdatePhase.DOWNLOADING -> "正在下载 ${formatBytes(state.downloadedBytes)} / ${formatBytes(state.totalBytes)}"
                     UpdatePhase.PAUSED -> "下载暂停，等待网络或系统重试"

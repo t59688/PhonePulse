@@ -155,11 +155,6 @@ fun BatteryScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        "设备电量变化与亮屏 / 熄屏耗电",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
                 }
             }
 
@@ -278,11 +273,6 @@ fun BatteryScreen(
                                 Text("应用使用 · 今日", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 TextButton(onClick = onRefresh, enabled = !isLoading) { Text("刷新", color = NeonCyan) }
                             }
-                            Text(
-                                "仅显示系统记录的前台使用时长。普通应用无法由使用时长测得各应用耗电。点击查看详情。",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
                         }
                         when {
                             !hasUsagePermission -> item {
@@ -295,14 +285,6 @@ fun BatteryScreen(
                                 AppBatteryItemCard(estimate, onClick = { selectedPackage = estimate.app.packageName })
                             }
                         }
-                        item {
-                            Text(
-                                "曲线仅展示已记录的电量，开启保活守护可持续采集。",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            )
-                        }
                     }
                 }
                 BatterySubTab.HEALTH -> {
@@ -311,27 +293,8 @@ fun BatteryScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
                     ) {
-                        item {
-                            BatteryGuideBanner(
-                                title = "电池容量估算依据",
-                                desc = "按合格会话的已测净电荷与电量变化估算容量，综合充电跨度、测量覆盖和异常样本影响，再与设计容量比较。样本一致也不能排除设备读数的系统误差。",
-                                accentColor = NeonEmerald
-                            )
-                        }
                         item(key = "battery_health") {
                             BatteryHealthCard(monitorState)
-                        }
-                        item {
-                            BatteryScienceCard(
-                                title = "如何提升标定准确度",
-                                tips = listOf(
-                                    "碎片化充电" to "单次增加至少 25 个百分点且测量覆盖至少 90% 即可参与初步估算。大跨度、完整测量的记录影响更大，无需强制满充满放。",
-                                    "样本一致性" to "近期最多 30 次合格会话共同参与估算；只反复覆盖同一小段电量不会提升为较一致等级。明显异常记录会降低影响。",
-                                    "测量中断" to "拔插电源仍分开记录；缺失过多、电量跳变或校准变化不会纳入容量估算。历史短会话有完整测量时也会重新评估。",
-                                    "核对标称容量" to "应用不预设机型容量。请按厂商规格手动填写，电流倍率与电芯口径也需设备证据支持。"
-                                ),
-                                accentColor = NeonEmerald
-                            )
                         }
                     }
                 }
@@ -341,26 +304,8 @@ fun BatteryScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
                     ) {
-                        item {
-                            BatteryGuideBanner(
-                                title = "目标电量提醒",
-                                desc = "按实际系统电量达到你设定的目标时发送通知。应用不能自动停止充电，也不能测出这次提醒延长了多少电池寿命。",
-                                accentColor = AmberWarning
-                            )
-                        }
                         item(key = "battery_maintenance") {
                             BatteryMaintenanceCard(monitorState, onSaveBatterySettings, onMuteBatteryAlarm)
-                        }
-                        item {
-                            BatteryScienceCard(
-                                title = "锂电池科学养护法则",
-                                tips = listOf(
-                                    "目标由你设置" to "默认 80% 是可修改的提醒设置，不是对你这台设备的最佳寿命测量结论。",
-                                    "温度来自采样" to "页面只显示系统报告的温度；没有温度读数时显示未知，不推算温度或寿命损失。",
-                                    "夜间提醒" to "提醒需要系统通知权限和后台采样支持。系统休眠或限制后台时可能延迟，不能作为硬件充电上限。"
-                                ),
-                                accentColor = AmberWarning
-                            )
                         }
                     }
                 }
@@ -370,13 +315,6 @@ fun BatteryScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
                     ) {
-                        item {
-                            BatteryGuideBanner(
-                                title = "充放电事件历史时间线",
-                                desc = "记录插电与未插电会话的观测时长、起止电量及已测净电荷。未覆盖区间单独记录；容量属于估算。可手动排除异常记录。",
-                                accentColor = ElectricViolet
-                            )
-                        }
                         item(key = "battery_sessions") {
                             BatterySessionsCard(monitorState.cycles, onExcludeBatteryCycle)
                         }
@@ -488,123 +426,6 @@ private fun QuickJumpCard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BatteryGuideBanner(
-    title: String,
-    desc: String,
-    accentColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(accentColor.copy(alpha = 0.08f))
-            .border(1.dp, accentColor.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
-            .padding(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = desc,
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BatteryScienceCard(
-    title: String,
-    tips: List<Pair<String, String>>,
-    accentColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(SurfaceElevatedDark)
-            .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
-            .padding(16.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(accentColor)
-                )
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                tips.forEach { (tipTitle, tipDesc) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(accentColor.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = tipTitle,
-                                color = accentColor,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Text(
-                            text = tipDesc,
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
             }
         }
     }

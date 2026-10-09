@@ -132,7 +132,7 @@ class BatteryMonitorUiTest {
         compose.setContent { PhonePulseTheme {
             BatteryHealthCard(BatteryMonitorUiState(health = BatteryHealthEstimate(healthPct = 130.0)))
         } }
-        compose.onNodeWithText("结果偏离标称容量，请核对设计容量和校准；不应仅据此判断损坏。").assertIsDisplayed()
+        compose.onNodeWithText("容量异常，请核对设计容量和校准设置。").assertIsDisplayed()
     }
 
     @Test fun `charge after first full percentage is neutral measurement`() {
@@ -144,7 +144,7 @@ class BatteryMonitorUiTest {
             }
         } }
         compose.onNodeWithText("此后净充入 50 mAh").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("满电后的继续充入量仅作记录，不能据此判断危险过充。").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("满电后的继续充入量仅作记录，不能据此判断危险过充。").assertDoesNotExist()
     }
 
     @Test fun `legacy active cycle starting full cannot display fabricated first full charge`() {

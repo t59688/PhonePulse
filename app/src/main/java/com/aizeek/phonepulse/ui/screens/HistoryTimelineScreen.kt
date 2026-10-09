@@ -124,11 +124,6 @@ fun HistoryTimelineScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "精准记录每一次点亮与熄屏时长",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
                 }
 
                 if (sessions.isNotEmpty()) {

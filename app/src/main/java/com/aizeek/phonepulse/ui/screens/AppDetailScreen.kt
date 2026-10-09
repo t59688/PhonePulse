@@ -75,29 +75,22 @@ fun AppDetailScreen(app: AppUsageInfo, period: UsagePeriod, batteryUsage: AppBat
                 }
             }
             item { AppUsageTimelineCard(app.packageName, loadTimeline) }
-            item { AppDataCard("前台使用时长", TimeFormatter.formatDurationChinese(app.totalTimeInForegroundMs),
-                "当前所选时段内的前台活跃时间") }
-            item { AppDataCard("前台活跃占比", String.format(Locale.getDefault(), "%.1f%%", app.percentageOfTotal),
-                "占当前时段所有应用前台使用时长的比例", ElectricViolet) }
-            item { AppDataCard("应用耗电数据", "未提供",
-                "系统使用情况接口仅提供使用时长，无法据此测得各应用耗电；本页不按时长分摊设备电量。") }
-            item { AppDataCard("最近使用", if (app.lastTimeUsedMs > 0) TimeFormatter.formatDateTime(app.lastTimeUsedMs) else "暂无记录",
-                "来自系统应用使用情况统计") }
-            if (app.launchCount > 0) item { AppDataCard("打开次数", "${app.launchCount} 次", "当前所选时段") }
-            item { Text("使用时长不代表耗电大小。设备电量和净电荷在电池页单独记录。",
-                color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 24.dp)) }
+            item { AppDataCard("前台使用时长", TimeFormatter.formatDurationChinese(app.totalTimeInForegroundMs)) }
+            item { AppDataCard("前台活跃占比", String.format(Locale.getDefault(), "%.1f%%", app.percentageOfTotal), ElectricViolet) }
+            item { AppDataCard("应用耗电数据", "未提供") }
+            item { AppDataCard("最近使用", if (app.lastTimeUsedMs > 0) TimeFormatter.formatDateTime(app.lastTimeUsedMs) else "暂无记录") }
+            if (app.launchCount > 0) item { AppDataCard("打开次数", "${app.launchCount} 次") }
         }
     }
 }
 
 @Composable
-private fun AppDataCard(title: String, value: String, description: String, accent: Color = NeonCyan) {
+private fun AppDataCard(title: String, value: String, accent: Color = NeonCyan) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SurfaceElevatedDark)
         .border(1.dp, BorderDark, RoundedCornerShape(20.dp)).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, color = TextSecondary, fontSize = 13.sp)
         Text(value, color = accent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(description, color = TextSecondary, fontSize = 12.sp)
     }
 }
 

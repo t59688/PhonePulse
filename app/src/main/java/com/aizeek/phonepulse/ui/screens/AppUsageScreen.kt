@@ -125,11 +125,6 @@ fun AppUsageScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "查看前台使用时长与活跃占比",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
                 }
 
                 Box(
@@ -487,7 +482,7 @@ private fun PermissionRequestBanner(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Android 系统需要授权「有权查看使用情况的应用」后，PhonePulse 才能获取每个 APP 的真实名称、系统图标以及用户在前台操作和观看的时间。",
+                text = "请开启「使用情况访问权限」，以查看各应用使用时长。",
                 color = TextSecondary,
                 fontSize = 12.sp,
                 lineHeight = 16.sp

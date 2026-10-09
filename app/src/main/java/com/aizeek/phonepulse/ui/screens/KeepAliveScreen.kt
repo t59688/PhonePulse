@@ -94,11 +94,6 @@ fun KeepAliveScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "多重守护机制，防止系统后台休眠杀死",
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
             }
         }
 
@@ -203,8 +198,8 @@ fun LazyListScope.keepAliveItems(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (score == 100) "所有保活机制就绪，守护极其稳定"
-                                else "建议补齐未配置项，避免熄屏被杀",
+                                text = if (score == 100) "后台权限已配置"
+                                else "请完成未配置项",
                                 color = if (score == 100) NeonEmerald else AmberWarning,
                                 fontSize = 12.sp
                             )
@@ -235,7 +230,7 @@ fun LazyListScope.keepAliveItems(
         // Section Title: Core Protections
         item {
             Text(
-                text = "核心保活防杀机制清单",
+                text = "后台运行与权限",
                 color = TextSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -247,8 +242,8 @@ fun LazyListScope.keepAliveItems(
         // Item 1: 前台常驻通知服务
         item {
             KeepAliveItemCard(
-                title = "前台常驻通知服务 (Foreground Service)",
-                subtitle = "提升进程优先级至最高层级，防止系统内存回收",
+                title = "后台记录",
+                subtitle = "持续记录亮屏与熄屏时长",
                 isPassed = isServiceRunning,
                 icon = Icons.Default.Security,
                 trailingContent = {
@@ -270,8 +265,8 @@ fun LazyListScope.keepAliveItems(
         // Item 2: 电池优化白名单
         item {
             KeepAliveItemCard(
-                title = "忽略电池优化 (Doze 白名单)",
-                subtitle = "允许应用在熄屏深度睡眠时持续监听唤醒与熄屏广播",
+                title = "忽略电池优化",
+                subtitle = "允许熄屏后继续记录",
                 isPassed = isBatteryIgnoring,
                 icon = Icons.Default.BatteryChargingFull,
                 trailingContent = {
@@ -287,8 +282,8 @@ fun LazyListScope.keepAliveItems(
         // Item 3: 应用使用情况访问权限
         item {
             KeepAliveItemCard(
-                title = "应用使用情况访问权限 (AppOps)",
-                subtitle = "支持精确统计每一个 App 的前台实际运行时间",
+                title = "使用情况访问权限",
+                subtitle = "查看各应用使用时长",
                 isPassed = hasUsagePermission,
                 icon = Icons.Default.TrendingUp,
                 trailingContent = {
@@ -321,8 +316,8 @@ fun LazyListScope.keepAliveItems(
         // Item 5: 开机自启动守护与系统设置
         item {
             KeepAliveItemCard(
-                title = "开机自启广播与系统自启动",
-                subtitle = "开机恢复广播已就绪；国内机型（小米/华为/OPPO/vivo）必须开启系统「允许自启动」",
+                title = "开机自启动",
+                subtitle = "请在系统设置中允许自启动",
                 isPassed = isBatteryIgnoring,
                 icon = Icons.Default.PowerSettingsNew,
                 trailingContent = {

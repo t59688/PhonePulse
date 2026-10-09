@@ -164,7 +164,7 @@ fun AppUsageChart(timeline: AppUsageTimeline) {
             }
         }
         Text(if (timeline.sessions.isEmpty()) "系统暂未提供可还原的今日前台使用事件。"
-            else "点击柱子查看用量。仅统计可还原的系统前台事件，未保留的事件无法补齐。",
+            else "点击柱子查看用量。",
             color = TextSecondary, fontSize = 11.sp)
     }
 }

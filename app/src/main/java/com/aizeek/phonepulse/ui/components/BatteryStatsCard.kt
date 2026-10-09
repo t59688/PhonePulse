@@ -285,7 +285,6 @@ fun BatteryStatsCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "已记录亮屏区间的平均速率", color = TextTertiary, fontSize = 10.sp)
                     }
                 }
 
@@ -317,7 +316,6 @@ fun BatteryStatsCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "已记录熄屏区间，非应用后台耗电", color = TextTertiary, fontSize = 10.sp)
                     }
                 }
             }

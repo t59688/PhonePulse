@@ -92,11 +92,6 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "版本更新、后台保活策略与核心权限",
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
             }
         }
 
@@ -224,7 +219,7 @@ private fun VersionUpdateCard(
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "版本更新中心 · GitHub Releases",
+                            text = "版本更新",
                             color = TextTertiary,
                             fontSize = 11.sp
                         )
@@ -407,13 +402,6 @@ private fun VersionUpdateCard(
                 }
             }
 
-            // Footer info
-            Text(
-                text = "应用启动或每 6 小时自动同步 GitHub 发布版本，支持应用内增量检测",
-                color = TextTertiary,
-                fontSize = 11.sp,
-                lineHeight = 15.sp
-            )
         }
     }
 }
@@ -445,7 +433,7 @@ private fun AboutAppCard() {
                 )
             }
             Text(
-                text = "PhonePulse 是一款专注于手机亮灭屏周期与电量消耗的统计工具。所有使用记录与电量采样数据仅安全保存在您本地设备的 SQLite 数据库中，不包含任何网络上传行为，完全保障您的使用隐私。",
+                text = "使用记录与电量数据仅保存在本机，不会上传。",
                 color = TextTertiary,
                 fontSize = 11.sp,
                 lineHeight = 16.sp

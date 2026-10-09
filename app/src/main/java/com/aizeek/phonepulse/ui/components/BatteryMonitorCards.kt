@@ -269,13 +269,14 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
                         )
                     }
                 }
-                Text("正值为流入电池，负值为电池放电；这是电池净电流。", color = TextSecondary, fontSize = 12.sp)
+                Text("正值充电，负值放电。", color = TextSecondary, fontSize = 12.sp)
+
             }
         }
 
         if (state.lastSampleTime != null && state.currentUa == null) {
             MonitorCallout(
-                text = "设备当前未提供有效电流读数，电量记录仍可查看；容量估算需要有效测量。",
+                text = "电流读数不可用",
                 icon = Icons.Default.Info,
                 tint = AmberWarning
             )
@@ -382,10 +383,7 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
                         value = bucketCharge(cycle, false),
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Nightlight,
-                        iconTint = ElectricVioletLight,
-                        subtext = {
-                            Text("熄屏期间已测净电荷；未覆盖区间不补算", color = TextTertiary, fontSize = 11.sp)
-                        }
+                        iconTint = ElectricVioletLight
                     )
                 }
             }
@@ -408,7 +406,6 @@ fun BatteryMeasurementCard(state: BatteryMonitorUiState) {
                         if (cycle.netMah.isFinite() && cycle.to100Mah.isFinite()) {
                             Text("此后净充入 ${number(cycle.netMah - cycle.to100Mah)} mAh", color = NeonEmerald, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         }
-                        Text("满电后的继续充入量仅作记录，不能据此判断危险过充。", color = TextTertiary, fontSize = 11.sp)
                     }
                 }
             }
@@ -513,7 +510,7 @@ fun BatteryHealthCard(state: BatteryMonitorUiState) {
 
         if (health.healthPct?.let { it > 125 || it < 60 } == true) {
             MonitorCallout(
-                text = "结果偏离标称容量，请核对设计容量和校准；不应仅据此判断损坏。",
+                text = "容量异常，请核对设计容量和校准设置。",
                 icon = Icons.Default.BatteryAlert,
                 tint = AmberWarning
             )
@@ -541,20 +538,13 @@ fun BatteryHealthCard(state: BatteryMonitorUiState) {
                 modifier = Modifier.weight(1f),
                 icon = if (consistent) Icons.Default.CheckCircle else Icons.Default.Info,
                 iconTint = if (consistent) NeonEmerald else TextSecondary,
-                accentColor = if (consistent) NeonEmerald else TextPrimary,
-                subtext = {
-                    val consistencyText = if (consistent)
-                        "多次测量较一致；结果仍是估算值。"
-                    else
-                        "初步测量：样本较少或波动较大，请继续正常使用。"
-                    Text(consistencyText, color = TextTertiary, fontSize = 11.sp)
-                }
+                accentColor = if (consistent) NeonEmerald else TextPrimary
             )
         }
 
         if (health.capacityMah == null) {
             MonitorCallout(
-                text = "单次增加至少 25 个百分点、测量覆盖至少 90% 的充电会话可参与估算；短会话需要更多样本，运行天数不等于有效样本数。",
+                text = "暂无容量估算，请继续记录充电。",
                 icon = Icons.Default.Info,
                 tint = TextTertiary
             )
@@ -573,7 +563,7 @@ fun BatteryHealthCard(state: BatteryMonitorUiState) {
         }
         if (health.downWeightedCount > 0) {
             MonitorCallout(
-                text = "${health.downWeightedCount} 次记录明显偏离其他样本，已降低其影响；样本离散度仍保留这些差异。",
+                text = "异常样本 ${health.downWeightedCount} 次",
                 icon = Icons.Default.Info,
                 tint = AmberWarning
             )
@@ -787,16 +777,6 @@ fun BatteryMaintenanceCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("续航与充电预测", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                predictionSourceLabel(state.estimates.source)?.let {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(SurfaceDark)
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text("估算依据：$it", color = TextSecondary, fontSize = 11.sp)
-                    }
-                }
             }
 
             val charging = state.activeCycle?.charging
@@ -868,8 +848,6 @@ fun BatteryMaintenanceCard(
                     tint = TextSecondary
                 )
             }
-
-            Text("预计时间随使用方式与充电速度变化，数据不足时暂不估算。", color = TextTertiary, fontSize = 11.sp)
         }
     }
 
@@ -946,7 +924,7 @@ private fun BatterySettingsDialog(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth().testTag("battery_scale_input")
                         )
-                        Text("电芯换算由你手动选择，应用不会自动识别双电芯。", color = TextTertiary, fontSize = 11.sp)
+                        Text("请按设备电芯规格选择。", color = TextTertiary, fontSize = 11.sp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = cells == 1, onClick = { cells = 1 })
                             Text("不换算", color = TextPrimary, fontSize = 13.sp)
@@ -1141,7 +1119,6 @@ fun BatterySessionsCard(cycles: List<BatteryCycle>, onExclude: (Long, Boolean) -
                                         if (cycle.netMah.isFinite() && cycle.to100Mah.isFinite()) {
                                             Text("此后净充入 ${number(cycle.netMah - cycle.to100Mah)} mAh", color = NeonEmerald, fontSize = 12.sp)
                                         }
-                                        Text("满电后的继续充入量仅作记录，不能据此判断危险过充。", color = TextTertiary, fontSize = 10.sp)
                                     }
                                 }
                             }
@@ -1168,15 +1145,6 @@ fun BatterySessionsCard(cycles: List<BatteryCycle>, onExclude: (Long, Boolean) -
             }
         }
     }
-}
-
-private fun predictionSourceLabel(source: String?): String? = when (source) {
-    "SESSION" -> "本次充电速度"
-    "SOC_HISTORY" -> "历史分电量区间充电速度"
-    "SOC_HISTORY_SESSION" -> "历史区间与本次充电速度推算"
-    "HISTORY" -> "近期电量变化与使用时长"
-    "MAH_HISTORY" -> "近期实测耗电与估算容量"
-    else -> null
 }
 
 private fun rejectionLabel(reason: String?): String = when (reason) {
