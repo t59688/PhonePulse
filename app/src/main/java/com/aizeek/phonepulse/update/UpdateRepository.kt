@@ -10,6 +10,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.aizeek.phonepulse.BuildConfig
+import com.aizeek.phonepulse.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,7 +99,7 @@ class UpdateRepository(
                 val oldFile = File(updateDirectory, fileName)
                 if (oldFile.exists() && !oldFile.delete()) throw IOException("无法清理旧安装包")
                 val request = DownloadManager.Request(Uri.parse(release.downloadUrl))
-                    .setTitle("PhonePulse ${release.version.name}")
+                    .setTitle(context.getString(R.string.update_download_title, context.getString(R.string.app_name), release.version.name))
                     .setDescription("正在下载更新安装包")
                     .setMimeType(APK_MIME)
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)

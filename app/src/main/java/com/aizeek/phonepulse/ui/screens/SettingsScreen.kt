@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aizeek.phonepulse.BuildConfig
+import com.aizeek.phonepulse.R
+import androidx.compose.ui.res.stringResource
 import com.aizeek.phonepulse.ui.theme.BorderDark
 import com.aizeek.phonepulse.ui.theme.CoralRose
 import com.aizeek.phonepulse.ui.theme.NeonCyan
@@ -197,7 +199,7 @@ private fun VersionUpdateCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "PhonePulse",
+                                text = stringResource(R.string.app_name),
                                 color = TextPrimary,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
@@ -426,7 +428,7 @@ private fun AboutAppCard() {
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "关于 PhonePulse 与隐私安全",
+                    text = stringResource(R.string.settings_about_title, stringResource(R.string.app_name)),
                     color = TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold

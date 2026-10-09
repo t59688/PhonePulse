@@ -42,6 +42,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import com.aizeek.phonepulse.R
+import androidx.compose.ui.res.stringResource
 import com.aizeek.phonepulse.companion.CompanionShare
 import com.aizeek.phonepulse.companion.CompanionState
 import com.aizeek.phonepulse.companion.CompanionPrompt
@@ -256,7 +258,7 @@ fun MainScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "PhonePulse",
+                            text = stringResource(R.string.app_name),
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp

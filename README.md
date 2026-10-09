@@ -1,7 +1,7 @@
-# PhonePulse
+# 屏伴兔 · ScreenPal
 
 <p align="center">
-  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="120" height="120" alt="PhonePulse">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="120" height="120" alt="屏伴兔 ScreenPal">
 </p>
 
 <p align="center">记录手机使用节奏，顺便养一只兔子</p>
@@ -193,7 +193,7 @@ Release 签名可在本地 `.env.android.local` 文件或系统环境变量中�
 
 在部分后台管控严格的定制系统（如 HyperOS、OriginOS、ColorOS、HarmonyOS 等）上，长时间熄屏待机后记录可能会被系统中断。建议在应用内“系统设置”页面参考提示进行配置：
 1. 确保保活诊断健康分达到满分；
-2. 在系统多任务界面中，将 PhonePulse 应用卡片进行“加锁”；
+2. 在系统多任务界面中，将「屏伴兔 / ScreenPal」应用卡片进行“加锁”；
 3. 在手机系统设置的“应用管理”中，允许本应用“自启动”并关闭“省电策略限制”。
 
 ---

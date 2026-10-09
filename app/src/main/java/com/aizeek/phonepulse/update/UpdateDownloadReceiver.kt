@@ -46,7 +46,7 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
                 Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "应用更新", NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.update_channel_name), NotificationManager.IMPORTANCE_DEFAULT))
         }
         val intent = Intent(context, MainActivity::class.java).apply {
             action = UpdateRepository.OPEN_UPDATES
@@ -56,8 +56,10 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         manager.notify(20, NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_update_notification)
-            .setContentTitle(if (state.phase == UpdatePhase.READY) "PhonePulse ${state.release?.version?.name} 已下载" else "PhonePulse 更新下载失败")
-            .setContentText(if (state.phase == UpdatePhase.READY) "点击安装新版本" else state.message)
+            .setContentTitle(if (state.phase == UpdatePhase.READY)
+                context.getString(R.string.update_notification_ready, context.getString(R.string.app_name), state.release?.version?.name.orEmpty())
+                else context.getString(R.string.update_notification_failed, context.getString(R.string.app_name)))
+            .setContentText(if (state.phase == UpdatePhase.READY) context.getString(R.string.update_notification_install) else state.message)
             .setContentIntent(pendingIntent).setAutoCancel(true).build())
     }
 

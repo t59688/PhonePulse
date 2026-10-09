@@ -51,6 +51,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aizeek.phonepulse.R
+import androidx.compose.ui.res.stringResource
 import com.aizeek.phonepulse.ui.theme.AmberWarning
 import com.aizeek.phonepulse.ui.theme.BorderDark
 import com.aizeek.phonepulse.ui.theme.ElectricViolet
@@ -371,7 +373,7 @@ fun LazyListScope.keepAliveItems(
                             VendorTipItem(vendor = "小米 / Redmi (MIUI / HyperOS)", tip = "在最近任务中长按锁定本应用；在应用信息中开启「自启动」，并将省电策略设为「无限制」。")
                             VendorTipItem(vendor = "华为 / 荣耀 (HarmonyOS)", tip = "设置 → 应用启动管理 → 关闭本应用的自动管理，改为手动管理并允许「自启动、关联启动、后台活动」。")
                             VendorTipItem(vendor = "OPPO / OnePlus (ColorOS)", tip = "多任务后台界面下拉应用卡片加锁；在电池设置中开启「允许完全后台行为」。")
-                            VendorTipItem(vendor = "vivo / iQOO (OriginOS)", tip = "设置 → 电池 → 后台高耗电 → 允许 PhonePulse 在后台高耗电运行。")
+                            VendorTipItem(vendor = "vivo / iQOO (OriginOS)", tip = stringResource(R.string.keep_alive_vendor_vivo_tip, stringResource(R.string.app_name)))
                             VendorTipItem(vendor = "三星 (One UI)", tip = "设置 → 电池和设备维护 → 电池 → 后台使用限制 → 将本应用加入「从不休眠的应用程序」。")
                         }
                     }

@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">屏伴兔</string>
+    <string name="notification_channel_name">屏幕状态监测</string>
+    <string name="notification_channel_desc">实时显示屏幕亮起与熄屏记录状态</string>
+    <string name="service_running_title">屏伴兔守护中</string>
+    <string name="service_running_content">正在精确记录亮屏与熄屏时长</string>
+    <string name="update_channel_name">应用更新</string>
+    <string name="update_notification_ready">%1$s %2$s 已下载</string>
+    <string name="update_notification_failed">%1$s 更新下载失败</string>
+    <string name="update_notification_install">点击安装新版本</string>
+    <string name="update_download_title">%1$s %2$s</string>
+    <string name="settings_about_title">关于 %1$s 与隐私安全</string>
+    <string name="keep_alive_vendor_vivo_tip">设置 → 电池 → 后台高耗电 → 允许 %1$s 在后台高耗电运行。</string>
+</resources>

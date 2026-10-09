@@ -1,5 +1,7 @@
 package com.aizeek.phonepulse.companion
 
+import com.aizeek.phonepulse.R
+import java.util.Locale
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -44,7 +46,7 @@ object CompanionShare {
             }
             val cream = Color.rgb(242, 232, 216); val muted = Color.rgb(173, 189, 185)
             val sage = Color.rgb(182, 211, 179)
-            text("PHONEPULSE  /  FOREST POSTCARD", 60f, 75f, 21f, sage)
+            text("${context.getString(R.string.app_name).uppercase(Locale.getDefault())}  /  FOREST POSTCARD", 60f, 75f, 21f, sage)
             text(letter?.title ?: "${state.name}的森林小窝", 60f, 148f, 44f, cream, true)
             canvas.save(); canvas.translate(60f, 195f)
             if (letter != null) ForestArtwork.scenery(canvas, 780f, 468f, letter.placeId, letter.artwork)
@@ -63,7 +65,7 @@ object CompanionShare {
                     text(selected.name, 155f, 1140f, 28f, cream, true)
                 } else text("你去生活，我去看看森林。", 60f, 1130f, 27f, cream)
             }
-            text("PhonePulse", 60f, 1200f, 19f, muted)
+            text(context.getString(R.string.app_name), 60f, 1200f, 19f, muted)
             val directory = File(context.cacheDir, "companion_share").apply { check(isDirectory || mkdirs()) }
             val expiry = System.currentTimeMillis() - 7 * 24 * 3_600_000L
             directory.listFiles()?.filter { it.isFile && it.name.startsWith("forest-") && it.extension == "png" && it.lastModified() < expiry }

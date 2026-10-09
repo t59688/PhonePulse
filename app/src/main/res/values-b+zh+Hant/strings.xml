@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">屏伴兔</string>
+    <string name="notification_channel_name">螢幕狀態監測</string>
+    <string name="notification_channel_desc">即時顯示螢幕亮起與關閉的紀錄狀態</string>
+    <string name="service_running_title">屏伴兔守護中</string>
+    <string name="service_running_content">正在記錄螢幕開啟與關閉時間</string>
+    <string name="update_channel_name">應用程式更新</string>
+    <string name="update_notification_ready">%1$s %2$s 已下載</string>
+    <string name="update_notification_failed">%1$s 更新下載失敗</string>
+    <string name="update_notification_install">點擊安裝新版本</string>
+    <string name="update_download_title">%1$s %2$s</string>
+    <string name="settings_about_title">關於 %1$s 與隱私安全</string>
+    <string name="keep_alive_vendor_vivo_tip">設定 → 電池 → 背景耗電 → 允許 %1$s 在背景執行。</string>
+</resources>
