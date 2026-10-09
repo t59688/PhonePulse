@@ -7,9 +7,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -105,7 +107,7 @@ fun BentoStatCards(
 
         // Row 2: 今日累计亮屏 & 唤醒次数
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 今日累计亮屏
@@ -119,7 +121,8 @@ fun BentoStatCards(
 
             Box(
                 modifier = Modifier
-                    .weight(1.1f)
+                    .weight(1f)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(22.dp))
                     .background(SurfaceDark)
                     .border(1.dp, BorderDark, RoundedCornerShape(22.dp))
@@ -191,7 +194,8 @@ fun BentoStatCards(
 
             Box(
                 modifier = Modifier
-                    .weight(0.9f)
+                    .weight(1f)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(22.dp))
                     .background(SurfaceDark)
                     .border(1.dp, BorderDark, RoundedCornerShape(22.dp))
