@@ -104,7 +104,7 @@ class ScreenTrackerService : Service() {
 
         ScreenStateHolder.setServiceRunning(true)
 
-         val initialNotification = buildNotification()
+        val initialNotification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NOTIFICATION_ID,
@@ -124,6 +124,8 @@ class ScreenTrackerService : Service() {
                 recordBatteryPoint()
             }
         }
+        // Reconcile previous process gaps before the first fallback poll.
+        ScreenStateHolder.requestRecovery(this)
         startSampling()
     }
 
@@ -203,6 +205,8 @@ class ScreenTrackerService : Service() {
                 // OEM builds may suppress screen broadcasts without killing the service.
                 powerManager?.isInteractive?.let { interactive ->
                     if (interactive != ScreenStateHolder.isScreenOn.value) {
+                        // Recover actual timestamps first; only then use the sampled time.
+                        ScreenStateHolder.requestRecovery(this@ScreenTrackerService)
                         ScreenStateHolder.onScreenStateChanged(this@ScreenTrackerService, interactive)
                     }
                 }
