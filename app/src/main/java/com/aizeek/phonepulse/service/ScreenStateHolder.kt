@@ -27,6 +27,12 @@ object ScreenStateHolder {
     private const val PREFS = "screen_tracking_checkpoint"
     private const val KEY_SCREEN_ON = "screen_on"
     private const val KEY_START_MS = "started_at_ms"
+    private const val KEY_LAST_OFF_DURATION = "last_off_duration_ms"
+    private const val KEY_LAST_ON_DURATION = "last_on_duration_ms"
+    private const val KEY_LAST_OFF_END = "last_off_end_ms"
+    private const val KEY_LAST_ON_END = "last_on_end_ms"
+    private var lastOffEndMs = 0L
+    private var lastOnEndMs = 0L
 
     private data class TrackingState(val screenOn: Boolean, val startMs: Long)
     private sealed interface Command {
@@ -133,6 +139,12 @@ object ScreenStateHolder {
         val now = System.currentTimeMillis()
         val currentPowerState = readPowerState(context, true)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        lastOffEndMs = prefs.getLong(KEY_LAST_OFF_END, 0L).takeIf { it in 1..now } ?: 0L
+        lastOnEndMs = prefs.getLong(KEY_LAST_ON_END, 0L).takeIf { it in 1..now } ?: 0L
+        _lastScreenOffDuration.value = prefs.getLong(KEY_LAST_OFF_DURATION, -1L)
+            .takeIf { it >= 0L && lastOffEndMs > 0L }
+        _lastScreenOnDuration.value = prefs.getLong(KEY_LAST_ON_DURATION, -1L)
+            .takeIf { it >= 0L && lastOnEndMs > 0L }
         val savedStart = prefs.getLong(KEY_START_MS, 0L)
         val validSavedStart = savedStart in 1..now
         val state = if (validSavedStart) {
@@ -187,8 +199,18 @@ object ScreenStateHolder {
             current = TrackingState(!lastCompleted.isScreenOn, lastCompleted.endTime)
         }
 
-        _lastScreenOffDuration.value = dao.getLastSessionByTypeSync("SCREEN_OFF")?.durationMs
-        _lastScreenOnDuration.value = dao.getLastSessionByTypeSync("SCREEN_ON")?.durationMs
+        // A session split at midnight has multiple Room rows, but one full duration.
+        // Keep the cached full duration when Room's last fragment ends at the same time.
+        val lastOff = dao.getLastSessionByTypeSync("SCREEN_OFF")
+        if (lastOff != null && lastOff.endTime > lastOffEndMs) {
+            _lastScreenOffDuration.value = lastOff.durationMs
+            lastOffEndMs = lastOff.endTime
+        }
+        val lastOn = dao.getLastSessionByTypeSync("SCREEN_ON")
+        if (lastOn != null && lastOn.endTime > lastOnEndMs) {
+            _lastScreenOnDuration.value = lastOn.durationMs
+            lastOnEndMs = lastOn.endTime
+        }
 
         val history = ScreenHistorySource.read(context, current.startMs, queryTime)
         var boundaries = history.orEmpty()
@@ -223,6 +245,8 @@ object ScreenStateHolder {
             }
         }
         applyReplay(context, replay)
+        // Also checkpoint durations restored from Room when there was no new transition.
+        trackingState?.let { persistCheckpoint(context, it) }
     }
 
     private suspend fun applyReplay(context: Context, replay: ScreenReplay) {
@@ -245,8 +269,13 @@ object ScreenStateHolder {
         }
         for (interval in replay.completed) {
             val duration = interval.endMs - interval.startMs
-            if (interval.screenOn) _lastScreenOnDuration.value = duration
-            else _lastScreenOffDuration.value = duration
+            if (interval.screenOn) {
+                _lastScreenOnDuration.value = duration
+                lastOnEndMs = interval.endMs
+            } else {
+                _lastScreenOffDuration.value = duration
+                lastOffEndMs = interval.endMs
+            }
         }
         val updated = TrackingState(replay.screenOn, replay.startMs)
         trackingState = updated
@@ -264,6 +293,8 @@ object ScreenStateHolder {
         _stateStartTime.value = newState.startMs
         _lastScreenOffDuration.value = null
         _lastScreenOnDuration.value = null
+        lastOffEndMs = 0L
+        lastOnEndMs = 0L
         refreshDateKey()
         persistCheckpoint(context, newState)
     }
@@ -272,6 +303,10 @@ object ScreenStateHolder {
         val saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_SCREEN_ON, state.screenOn)
             .putLong(KEY_START_MS, state.startMs)
+            .putLong(KEY_LAST_OFF_DURATION, _lastScreenOffDuration.value ?: -1L)
+            .putLong(KEY_LAST_ON_DURATION, _lastScreenOnDuration.value ?: -1L)
+            .putLong(KEY_LAST_OFF_END, lastOffEndMs)
+            .putLong(KEY_LAST_ON_END, lastOnEndMs)
             .commit()
         if (!saved) Log.w("ScreenStateHolder", "Screen state checkpoint could not be saved")
     }
