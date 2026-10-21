@@ -285,7 +285,7 @@ fun LazyListScope.keepAliveItems(
         item {
             KeepAliveItemCard(
                 title = "使用情况访问权限",
-                subtitle = "查看各应用使用时长",
+                subtitle = "查看应用时长，并补录漏掉的亮熄屏记录",
                 isPassed = hasUsagePermission,
                 icon = Icons.Default.TrendingUp,
                 trailingContent = {

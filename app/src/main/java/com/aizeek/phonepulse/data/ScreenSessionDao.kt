@@ -35,6 +35,9 @@ interface ScreenSessionDao {
     @Query("SELECT * FROM screen_sessions WHERE type = :type ORDER BY startTime DESC LIMIT 1")
     suspend fun getLastSessionByTypeSync(type: String): ScreenSession?
 
+    @Query("SELECT * FROM screen_sessions ORDER BY endTime DESC, id DESC LIMIT 1")
+    suspend fun getLastCompletedSessionSync(): ScreenSession?
+
     @Query("SELECT * FROM screen_sessions WHERE startTime >= :sinceTimeMs ORDER BY startTime ASC")
     fun getSessionsSince(sinceTimeMs: Long): Flow<List<ScreenSession>>
 
