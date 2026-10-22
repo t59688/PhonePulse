@@ -79,8 +79,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!ScreenStateHolder.isServiceRunning.value) ScreenTrackerService.start(this)
-        ScreenStateHolder.requestRecovery(this)
+        // Do not restart tracking here if the user stopped it in Settings.
+        if (ScreenStateHolder.isServiceRunning.value) ScreenStateHolder.requestRecovery(this)
     }
 
     override fun onNewIntent(intent: Intent) {
