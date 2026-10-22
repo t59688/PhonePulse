@@ -31,6 +31,9 @@ object ScreenStateHolder {
     private const val KEY_LAST_ON_DURATION = "last_on_duration_ms"
     private const val KEY_LAST_OFF_END = "last_off_end_ms"
     private const val KEY_LAST_ON_END = "last_on_end_ms"
+    private const val KEY_HISTORY_SCAN_MS = "last_history_scan_ms"
+    private const val HISTORY_OVERLAP_MS = 2 * 60_000L
+    private var lastHistoryScanMs = 0L
     private var lastOffEndMs = 0L
     private var lastOnEndMs = 0L
 
@@ -145,6 +148,8 @@ object ScreenStateHolder {
             .takeIf { it >= 0L && lastOffEndMs > 0L }
         _lastScreenOnDuration.value = prefs.getLong(KEY_LAST_ON_DURATION, -1L)
             .takeIf { it >= 0L && lastOnEndMs > 0L }
+        lastHistoryScanMs = prefs.getLong(KEY_HISTORY_SCAN_MS, 0L)
+            .takeIf { it in 1..now } ?: 0L
         val savedStart = prefs.getLong(KEY_START_MS, 0L)
         val validSavedStart = savedStart in 1..now
         val state = if (validSavedStart) {
@@ -212,10 +217,16 @@ object ScreenStateHolder {
             lastOnEndMs = lastOn.endTime
         }
 
-        val history = ScreenHistorySource.read(context, current.startMs, queryTime)
+        // An ongoing screen-off interval may span days. Read incrementally rather
+        // than re-scanning 48 hours of UsageStats during every periodic check.
+        val historyFrom = maxOf(
+            current.startMs,
+            (lastHistoryScanMs - HISTORY_OVERLAP_MS).coerceAtLeast(0L)
+        )
+        val history = ScreenHistorySource.read(context, historyFrom, queryTime)
         var boundaries = history.orEmpty()
 
-        if (queryTime - current.startMs > ScreenHistorySource.MAX_LOOKBACK_MS) {
+        if (queryTime - historyFrom > ScreenHistorySource.MAX_LOOKBACK_MS) {
             // We cannot assign the uncovered days to either state without evidence.
             // Start from the first available transition, not the stale checkpoint.
             if (boundaries.isNotEmpty()) {
@@ -245,6 +256,8 @@ object ScreenStateHolder {
             }
         }
         applyReplay(context, replay)
+        // Only advance the historical cursor after a successful UsageStats query.
+        if (history != null) lastHistoryScanMs = queryTime
         // Also checkpoint durations restored from Room when there was no new transition.
         trackingState?.let { persistCheckpoint(context, it) }
     }
@@ -295,6 +308,7 @@ object ScreenStateHolder {
         _lastScreenOnDuration.value = null
         lastOffEndMs = 0L
         lastOnEndMs = 0L
+        lastHistoryScanMs = System.currentTimeMillis()
         refreshDateKey()
         persistCheckpoint(context, newState)
     }
@@ -307,6 +321,7 @@ object ScreenStateHolder {
             .putLong(KEY_LAST_ON_DURATION, _lastScreenOnDuration.value ?: -1L)
             .putLong(KEY_LAST_OFF_END, lastOffEndMs)
             .putLong(KEY_LAST_ON_END, lastOnEndMs)
+            .putLong(KEY_HISTORY_SCAN_MS, lastHistoryScanMs)
             .commit()
         if (!saved) Log.w("ScreenStateHolder", "Screen state checkpoint could not be saved")
     }
