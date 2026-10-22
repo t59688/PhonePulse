@@ -20,6 +20,7 @@ import com.aizeek.phonepulse.update.UpdateRepository
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.aizeek.phonepulse.service.ScreenTrackerService
+import com.aizeek.phonepulse.service.ScreenStateHolder
 import com.aizeek.phonepulse.ui.MainScreen
 import com.aizeek.phonepulse.ui.theme.BgDark
 import com.aizeek.phonepulse.ui.theme.PhonePulseTheme
@@ -74,6 +75,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Do not restart tracking here if the user stopped it in Settings.
+        if (ScreenStateHolder.isServiceRunning.value) ScreenStateHolder.requestRecovery(this)
     }
 
     override fun onNewIntent(intent: Intent) {

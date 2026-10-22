@@ -76,9 +76,7 @@ class ScreenStateRepository(private val context: Context) {
     }
 
     suspend fun clearHistory() {
-        withContext(Dispatchers.IO) {
-            dao.clearAll()
-        }
+        ScreenStateHolder.clearHistory(context)
     }
 
     companion object {

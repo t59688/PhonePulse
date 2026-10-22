@@ -12,6 +12,9 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.os.SystemClock
+import kotlinx.coroutines.flow.collect
 import androidx.core.app.NotificationCompat
 import com.aizeek.phonepulse.MainActivity
 import com.aizeek.phonepulse.R
@@ -40,6 +43,8 @@ class ScreenTrackerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
     private var batteryRepo: BatteryRepository? = null
     private var tickerJob: Job? = null
+    private var screenStateObserver: Job? = null
+    private var lastRecoveryElapsedMs = SystemClock.elapsedRealtime()
     private lateinit var monitor: BatteryMonitorRepository
     private lateinit var telemetrySource: AndroidBatteryTelemetrySource
     private lateinit var chargeAlarm: BatteryChargeAlarm
@@ -57,26 +62,9 @@ class ScreenTrackerService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val ctx = context ?: return
             when (intent?.action) {
-                Intent.ACTION_SCREEN_ON -> {
-                    ScreenStateHolder.onScreenStateChanged(ctx, true)
-                    startTicker()
-                    recordBatteryPoint()
-                }
-                Intent.ACTION_SCREEN_OFF -> {
-                    stopTicker()
-                    ScreenStateHolder.onScreenStateChanged(ctx, false)
-                    updateNotification()
-                    recordBatteryPoint()
-                }
-                Intent.ACTION_USER_PRESENT -> {
-                    if (!ScreenStateHolder.isScreenOn.value) {
-                        ScreenStateHolder.onScreenStateChanged(ctx, true)
-                    }
-                    if (tickerJob?.isActive != true) {
-                        startTicker()
-                    }
-                    recordBatteryPoint()
-                }
+                Intent.ACTION_SCREEN_ON -> ScreenStateHolder.onScreenStateChanged(ctx, true)
+                Intent.ACTION_SCREEN_OFF -> ScreenStateHolder.onScreenStateChanged(ctx, false)
+                Intent.ACTION_USER_PRESENT -> ScreenStateHolder.onScreenStateChanged(ctx, true)
                 Intent.ACTION_BATTERY_CHANGED -> {
                     recordBatteryPoint(intent)
                 }
@@ -116,10 +104,6 @@ class ScreenTrackerService : Service() {
 
         ScreenStateHolder.setServiceRunning(true)
 
-        val powerManager = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-        val isScreenCurrentlyOn = powerManager?.isInteractive ?: ScreenStateHolder.isScreenOn.value
-        ScreenStateHolder.syncScreenState(isScreenCurrentlyOn)
-
         val initialNotification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
@@ -131,11 +115,17 @@ class ScreenTrackerService : Service() {
             startForeground(NOTIFICATION_ID, initialNotification)
         }
 
-        if (ScreenStateHolder.isScreenOn.value) {
-            startTicker()
+        screenStateObserver = serviceScope.launch {
+            ScreenStateHolder.isScreenOn.collect { screenOn ->
+                if (screenOn) startTicker() else {
+                    stopTicker()
+                    updateNotification()
+                }
+                recordBatteryPoint()
+            }
         }
-
-        recordBatteryPoint()
+        // Reconcile previous process gaps before the first fallback poll.
+        ScreenStateHolder.requestRecovery(this)
         startSampling()
     }
 
@@ -210,7 +200,21 @@ class ScreenTrackerService : Service() {
             }
         }
         samplingJob = serviceScope.launch(Dispatchers.IO) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
             while (isActive) {
+                // OEM builds may suppress screen broadcasts without killing the service.
+                powerManager?.isInteractive?.let { interactive ->
+                    if (interactive != ScreenStateHolder.isScreenOn.value) {
+                        // Recover actual timestamps first; only then use the sampled time.
+                        ScreenStateHolder.requestRecovery(this@ScreenTrackerService)
+                        ScreenStateHolder.onScreenStateChanged(this@ScreenTrackerService, interactive)
+                    }
+                }
+                val elapsed = SystemClock.elapsedRealtime()
+                if (elapsed - lastRecoveryElapsedMs >= 5 * 60_000L) {
+                    lastRecoveryElapsedMs = elapsed
+                    ScreenStateHolder.requestRecovery(this@ScreenTrackerService)
+                }
                 enqueueSample(tick = true)
                 delay(if (ScreenStateHolder.isScreenOn.value || latestCharging) 5_000 else 30_000)
             }
@@ -322,11 +326,7 @@ class ScreenTrackerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         enqueueSample()
         ScreenStateHolder.setServiceRunning(true)
-        if (ScreenStateHolder.isScreenOn.value) {
-            startTicker()
-        } else {
-            updateNotification()
-        }
+        ScreenStateHolder.requestRecovery(this)
         return START_STICKY
     }
 
@@ -335,6 +335,7 @@ class ScreenTrackerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopTicker()
+        screenStateObserver?.cancel()
         samplingJob?.cancel()
         samplingConsumer?.cancel()
         monitorNotificationJob?.cancel()
